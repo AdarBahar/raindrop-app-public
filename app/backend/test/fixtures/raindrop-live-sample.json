@@ -1,0 +1,142 @@
+{
+  "note": "Objects that the live Raindrop API returned on 2026-11-09 for items made by scripts/live-api-check.mjs in a test account. User data is replaced.",
+  "collections": [
+    {
+      "_id": 77011771,
+      "title": "zz-sync-check-A-1794234474556",
+      "description": "",
+      "user": {
+        "$ref": "user",
+        "$id": 1
+      },
+      "public": false,
+      "view": "list",
+      "count": 0,
+      "cover": [],
+      "expanded": true,
+      "creatorRef": {
+        "_id": 1,
+        "name": "Test User"
+      },
+      "lastAction": "2026-11-09T14:28:03.297Z",
+      "created": "2026-11-09T14:27:56.142Z",
+      "lastUpdate": "2026-11-09T14:27:56.142Z",
+      "parent": null,
+      "sort": 77011771,
+      "slug": "zz-sync-check-a-1794234474556",
+      "access": {
+        "for": 1,
+        "level": 4,
+        "root": false,
+        "draggable": true
+      },
+      "author": true
+    },
+    {
+      "_id": 77011772,
+      "title": "zz-sync-check-B-1794234474556",
+      "description": "",
+      "user": {
+        "$ref": "user",
+        "$id": 1
+      },
+      "public": false,
+      "view": "list",
+      "count": 2,
+      "cover": [],
+      "expanded": true,
+      "creatorRef": {
+        "_id": 1,
+        "name": "Test User"
+      },
+      "lastAction": "2026-11-09T14:28:10.669Z",
+      "created": "2026-11-09T14:27:57.039Z",
+      "lastUpdate": "2026-11-09T14:28:08.948Z",
+      "parent": null,
+      "sort": 77011772,
+      "slug": "zz-sync-check-b-1794234474556",
+      "access": {
+        "for": 1,
+        "level": 4,
+        "root": false,
+        "draggable": true
+      },
+      "author": true
+    }
+  ],
+  "bookmarks": [
+    {
+      "_id": 1919770940,
+      "link": "https://example.com/zz-sync-check-1794234474556-1",
+      "title": "zz-sync-check 1",
+      "excerpt": "",
+      "note": "",
+      "type": "link",
+      "user": {
+        "$ref": "user",
+        "$id": 1
+      },
+      "cover": "",
+      "tags": [
+        "only"
+      ],
+      "pleaseParse": {
+        "weight": 1
+      },
+      "removed": false,
+      "collection": {
+        "$ref": "collections",
+        "$id": 77011772,
+        "oid": 77011772
+      },
+      "media": [],
+      "created": "2026-11-09T14:27:57.943Z",
+      "lastUpdate": "2026-11-09T14:28:08.923Z",
+      "domain": "example.com",
+      "creatorRef": {
+        "_id": 1,
+        "name": "Test User"
+      },
+      "sort": 1919770940,
+      "highlights": [],
+      "collectionId": 77011772
+    },
+    {
+      "_id": 1919770946,
+      "link": "https://example.com/zz-sync-check-1794234474556-2",
+      "title": "zz-sync-check 2",
+      "excerpt": "",
+      "note": "",
+      "type": "link",
+      "user": {
+        "$ref": "user",
+        "$id": 1
+      },
+      "cover": "",
+      "tags": [
+        "t1",
+        "t2"
+      ],
+      "pleaseParse": {
+        "weight": 1
+      },
+      "removed": false,
+      "collection": {
+        "$ref": "collections",
+        "$id": 77011772,
+        "oid": 77011772
+      },
+      "media": [],
+      "created": "2026-11-09T14:27:58.803Z",
+      "lastUpdate": "2026-11-09T14:28:07.016Z",
+      "domain": "example.com",
+      "creatorRef": {
+        "_id": 1,
+        "name": "Test User"
+      },
+      "sort": 1919770946,
+      "highlights": [],
+      "collectionId": 77011772
+    }
+  ]
+}

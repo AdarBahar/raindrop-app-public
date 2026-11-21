@@ -1,0 +1,1082 @@
+<title>Raindrop Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: fixed 248 px sidebar (folders, tags, keys) + a scrolling main column with search, toolbar and dense rows. */
+:root {
+  --bg: #0E1218; --surface: #141A22; --surface-2: #1B2330; --line: #27313F; --line-strong: #3A4659;
+  --fg: #E4E9F0; --muted: #94A0B2; --accent: #E6B457; --accent-fg: #1A1200;
+  --new: #5CC58A; --warn: #E3AA45; --danger: #F08080; --focus: #86BBFF;
+  --sel: rgba(230, 180, 87, .10); --tile-l: 34%; --tile-s: 42%;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F2F4F8; --surface: #FFFFFF; --surface-2: #F6F8FB; --line: #D9DFE8; --line-strong: #B9C2CF;
+    --fg: #1A2130; --muted: #5B6678; --accent: #A8720E; --accent-fg: #FFFFFF;
+    --new: #1E7A47; --warn: #8F5E00; --danger: #B42318; --focus: #1F5FBF;
+    --sel: rgba(168, 114, 14, .10); --tile-l: 40%; --tile-s: 40%;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #F2F4F8; --surface: #FFFFFF; --surface-2: #F6F8FB; --line: #D9DFE8; --line-strong: #B9C2CF;
+  --fg: #1A2130; --muted: #5B6678; --accent: #A8720E; --accent-fg: #FFFFFF;
+  --new: #1E7A47; --warn: #8F5E00; --danger: #B42318; --focus: #1F5FBF;
+  --sel: rgba(168, 114, 14, .10); --tile-l: 40%; --tile-s: 40%;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
+h1, h2, h3 { margin: 0; font-weight: 600; }
+button, input, select { font: inherit; color: inherit; }
+a { color: inherit; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: 8px; top: -60px; background: var(--accent); color: var(--accent-fg); padding: 8px 12px; border-radius: 4px; z-index: 50; }
+.skip:focus { top: 8px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Controls */
+.btn { min-height: 32px; padding: 5px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+.btn.quiet { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.quiet:hover { color: var(--fg); background: var(--surface-2); }
+.btn.sm { min-height: 24px; padding: 2px 8px; font-size: 12px; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field > label, .lbl { font-size: 11px; color: var(--muted); letter-spacing: .02em; }
+input[type="search"], input[type="text"], input[type="date"], select {
+  min-height: 32px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--fg);
+}
+input::placeholder { color: var(--muted); }
+.spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } * { transition: none !important; } }
+
+/* App frame */
+.app { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100%; }
+aside { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 18px; padding-block: 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 12px; overflow-y: auto; }
+.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand-name { font-size: 18px; font-weight: 600; }
+.brand-sub { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .08em; }
+.account { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.account b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account small { color: var(--muted); display: block; font-size: 12px; }
+aside h2 { font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+aside ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.nav-item { width: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; color: var(--fg); }
+.nav-item:hover { background: var(--surface-2); }
+.nav-item[aria-pressed="true"] { background: var(--sel); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent); }
+.nav-item .n { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nav-item .ic { color: var(--muted); font-size: 13px; text-align: center; }
+.nav-item[aria-pressed="true"] .ic { color: var(--accent); }
+.nav-item span.name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.new-folder { display: grid; gap: 6px; margin-top: 6px; padding: 8px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+.err { color: var(--danger); font-size: 12px; }
+.err:empty, .warn-text:empty { display: none; }
+.warn-text { color: var(--warn); font-size: 12px; }
+.keys { margin-top: auto; font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+.keys kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; margin-right: 6px; color: var(--fg); }
+
+main { min-width: 0; overflow-y: auto; padding-block: 18px 0; padding-left: 24px; padding-right: max(24px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 12px; }
+.top { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.search-field { flex: 1 1 320px; position: relative; }
+.search-field input { width: 100%; padding-left: 34px; font-size: 15px; min-height: 40px; }
+.search-field .glass { position: absolute; left: 11px; bottom: 11px; color: var(--muted); pointer-events: none; }
+.counter { position: absolute; right: 10px; bottom: 11px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.toolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+.seg button { min-height: 32px; padding: 4px 10px; border: 0; background: transparent; cursor: pointer; border-right: 1px solid var(--line); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.seg button:last-child { border-right: 0; }
+.seg button .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.seg button[aria-pressed="true"] .n { color: inherit; }
+.seg button[aria-pressed="true"]::before { content: "✓ "; }
+.dates { display: flex; gap: 8px; align-items: end; }
+.dates .to { color: var(--muted); padding-bottom: 7px; }
+.count-row { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; min-height: 22px; }
+.count-row strong { font-weight: 600; }
+.count-row span { color: var(--muted); }
+.paging { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.paging .page { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.paging select { min-height: 28px; padding: 2px 6px; }
+.list-head { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--muted); padding: 0 12px; }
+.list-head label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.list-head a { color: var(--accent); }
+
+/* Rows */
+#list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.row { position: relative; display: grid; grid-template-columns: 24px 40px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row:hover, .row.cursor { background: var(--surface-2); }
+.row.cursor { box-shadow: inset 3px 0 0 var(--accent); }
+.row.selected { background: var(--sel); }
+.row .chk { margin: 11px 0 0; width: 16px; height: 16px; opacity: 0; }
+.row:hover .chk, .row.selected .chk, .row .chk:focus-visible, .row.cursor .chk { opacity: 1; }
+.tile { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; font-family: var(--mono); font-weight: 500; font-size: 18px; color: #fff; background: hsl(var(--h) var(--tile-s) var(--tile-l)); text-decoration: none; }
+.body { min-width: 0; display: grid; gap: 3px; }
+.title-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.title { font-weight: 600; text-decoration: none; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.title:hover { color: var(--accent); }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; white-space: nowrap; }
+.badge.new { color: var(--new); }
+.badge.needs { color: var(--warn); }
+.meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta .d { font-family: var(--mono); font-size: 11.5px; }
+.excerpt { font-size: 13px; color: var(--muted); }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 240px; padding-top: 2px; }
+.chip { font-size: 11.5px; padding: 1px 8px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); cursor: pointer; color: var(--fg); min-height: 24px; display: inline-flex; align-items: center; gap: 4px; }
+.chip:hover, .chip.on { border-color: var(--accent); color: var(--accent); }
+.chip .x { border: 0; background: none; padding: 0 2px; cursor: pointer; color: var(--muted); font-size: 13px; line-height: 1; min-width: 24px; min-height: 22px; }
+.chip .x:hover { color: var(--danger); }
+.actions { grid-column: 3 / 5; display: flex; gap: 8px; }
+.row .actions { opacity: 0; }
+.row:hover .actions, .row.cursor .actions, .row:focus-within .actions { opacity: 1; }
+.editor { grid-column: 3 / 5; border: 1px dashed var(--accent); border-radius: 8px; padding: 12px; display: grid; gap: 10px; background: var(--surface); }
+.editor .line { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.editor .tags-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.editor .tags-row .none { color: var(--muted); font-size: 12px; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: 6px; background: var(--surface-2); }
+.empty { padding: 28px 12px; color: var(--muted); text-align: center; }
+
+footer { margin-top: auto; display: flex; gap: 18px; flex-wrap: wrap; padding: 14px 0 18px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+footer a { color: var(--accent); }
+
+/* Bulk bar */
+.bulk { position: sticky; bottom: 0; z-index: 20; margin-left: 248px; padding: 10px max(24px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) 24px; background: var(--surface); border-top: 1px solid var(--accent); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.bulk strong { font-family: var(--mono); }
+.bulk-panel { flex-basis: 100%; display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.bulk-panel .picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.bulk-panel .picks label { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 2px 8px; }
+
+dialog { background: var(--surface); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 10px; padding: 20px; width: min(420px, 92vw); }
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog h2 { font-size: 16px; margin-bottom: 6px; }
+dialog .opts { display: grid; gap: 8px; margin-top: 14px; }
+dialog .opts .btn { justify-content: start; min-height: 40px; }
+dialog .help { font-size: 12px; color: var(--muted); margin: -2px 0 4px 12px; }
+
+/* Gate screens (section 3), loading, progress panel (5.6) and the sample-state control */
+.gate { min-height: 100%; display: grid; place-items: center; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.gate-box { width: min(420px, 90vw); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 24px; display: grid; gap: 12px; }
+.gate-box h2 { font-size: 18px; }
+.gate-box p { margin: 0; color: var(--muted); }
+.gate-box .btn { justify-self: start; text-decoration: none; }
+.gate-box .sample-note { font-size: 12px; border-top: 1px dashed var(--line-strong); padding-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.loadbar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.loadbar > span { display: block; height: 100%; background: var(--accent); width: 0; transition: width .15s linear; }
+.empty .btn { margin-top: 10px; }
+.bulk .acts { display: contents; }
+.bulk.running .acts, .bulk.running #bulkClear, .bulk.running #bulkActions { display: none; }
+.progress { flex-basis: 100%; display: grid; gap: 8px; }
+.progress .line { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.progress .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.progress .bar > span { display: block; height: 100%; background: var(--accent); width: 0; transition: width .15s linear; }
+.status-link { color: var(--accent); cursor: pointer; background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; min-height: 24px; }
+.fail-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.fail-list li { display: grid; gap: 2px; }
+.fail-list .why { color: var(--danger); font-size: 12px; }
+.sample { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+.sample select { min-height: 24px; padding: 1px 6px; font-size: 12px; }
+
+.phone-only { display: none; }
+#sheetClose { display: none; }
+@media (max-width: 899px) { .app { grid-template-columns: 200px minmax(0, 1fr); } .bulk { margin-left: 200px; } }
+@media (max-width: 599px) {
+  .app { display: block; height: auto; }
+  html, body { height: auto; }
+  main { overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .phone-only { display: inline-flex; }
+  aside { display: none; }
+  body.filters-open aside { display: flex; position: fixed; inset: 0; z-index: 40; padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  body.filters-open { overflow: hidden; }
+  #sheetClose { display: inline-flex; position: sticky; bottom: 0; }
+  .toolbar { display: none; }
+  #sheetSlot .toolbar { display: grid; gap: 10px; }
+  #sheetSlot .seg { flex-wrap: wrap; }
+  .folder-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .folder-row .lbl { flex: 0 0 auto; align-self: center; }
+  .folder-row .chip { flex: 0 0 auto; min-height: 44px; padding: 0 14px; }
+  .row { grid-template-columns: 24px 40px minmax(0, 1fr); }
+  .row .chk { opacity: 1; width: 20px; height: 20px; }
+  .chips { grid-column: 3; justify-content: flex-start; max-width: none; }
+  .actions, .editor { grid-column: 1 / 4; }
+  .row .actions { opacity: 1; }
+  .btn, .chip, .seg button, select, input { min-height: 44px; }
+  .btn.sm { min-height: 44px; }
+  .bulk { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); max-height: 80vh; overflow-y: auto; }
+  .bulk .acts { display: none; }
+  body.bulk-open .bulk .acts { display: flex; flex-direction: column; flex-basis: 100%; gap: 8px; }
+  .keys { display: none; }
+  .sample { margin-left: 0; }
+}
+</style>
+
+<a class="skip" href="#results">Skip to results</a>
+<section class="gate" id="gate" hidden aria-labelledby="gateH">
+  <div class="gate-box">
+    <div id="gateSignin" hidden>
+      <h2 id="gateH">Sign in required</h2>
+      <p>Open this app through the Admintools sign-in page.</p>
+    </div>
+    <div id="gateConnect" hidden style="display:grid;gap:12px">
+      <h2>Connect Raindrop</h2>
+      <p>Approve this app once. It then reads only your own bookmarks.</p>
+      <a class="btn primary" id="connectBtn" href="#">Connect Raindrop</a>
+      <p class="err" id="connectErr" role="alert"></p>
+    </div>
+    <div id="gateOut" hidden style="display:grid;gap:12px">
+      <h2>Admintools</h2>
+      <p>User was logged out.</p>
+      <p style="font-size:12px">This is the Admintools sign-out page. It has no button and no return link (section 8, point 15).</p>
+    </div>
+    <div class="sample-note"><span class="lbl">Sample only:</span><button class="btn sm quiet" id="gateBack">Back to the main app</button></div>
+  </div>
+</section>
+<div class="app">
+  <aside id="side" aria-label="Folders and tags">
+    <div class="brand"><span class="brand-name">Raindrop</span><span class="brand-sub">LEDGER</span></div>
+    <div class="account" title="Signed in to the app as Adar Bahar">
+      <div><b>Adar Bahar</b><small>adar@example.com</small></div>
+      <button class="btn sm" id="logoutBtn">Logout</button>
+    </div>
+    <div id="sheetSlot"></div>
+    <nav aria-label="Folders">
+      <h2>Folders</h2>
+      <ul id="folderList"></ul>
+      <button class="btn quiet sm" id="newFolderBtn" aria-expanded="false" aria-controls="newFolderBox">+ Create a new folder</button>
+      <div class="new-folder" id="newFolderBox" hidden>
+        <label class="lbl" for="newFolderName">Folder name</label>
+        <input type="text" id="newFolderName" placeholder="Folder name" maxlength="120" aria-describedby="newFolderErr">
+        <div style="display:flex;gap:6px"><button class="btn sm primary" id="newFolderOk">Create</button><button class="btn sm" id="newFolderCancel">Cancel</button></div>
+        <span class="err" id="newFolderErr" role="alert"></span>
+      </div>
+    </nav>
+    <nav aria-label="Tags">
+      <h2>Tags</h2>
+      <ul id="tagList"></ul>
+      <button class="btn quiet sm" id="moreTags" aria-expanded="false">Show all</button>
+    </nav>
+    <div class="keys" aria-label="Keyboard shortcuts">
+      <div><kbd>/</kbd>Search</div>
+      <div><kbd>J</kbd><kbd>K</kbd>Move down and up</div>
+      <div><kbd>E</kbd>Edit the focused bookmark</div>
+      <div><kbd>↵</kbd>Open the link</div>
+    </div>
+    <button class="btn primary" id="sheetClose">Show bookmarks</button>
+  </aside>
+
+  <main id="main">
+    <h1 class="vh">Raindrop search</h1>
+    <header class="top">
+      <div class="field search-field">
+        <label for="q">Search</label>
+        <span class="glass" aria-hidden="true">⌕</span>
+        <input id="q" type="search" placeholder="Search title, note, excerpt, link, tag, folder..." autofocus maxlength="200" autocomplete="off">
+        <span class="counter" id="qCount" aria-live="polite"></span>
+      </div>
+      <button class="btn" id="pull">Check for new bookmarks</button>
+      <button class="btn phone-only" id="filtersBtn" aria-expanded="false">Filters (0)</button>
+    </header>
+
+    <div class="toolbar" id="toolbar">
+      <div class="field"><label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+          <option value="az">Title A-Z</option><option value="za">Title Z-A</option>
+          <option value="folder">Folder</option><option value="visits">Most visited</option>
+        </select></div>
+      <div class="field"><label for="statusFilter">Status</label>
+        <select id="statusFilter"><option value="">Status: all</option><option value="new">New</option><option value="needs">Unsorted or no tags</option></select></div>
+      <div class="field"><label for="visitedFilter">Visited</label>
+        <select id="visitedFilter"><option value="">Visited: all</option><option value="yes">Visited</option><option value="no">Not visited</option></select></div>
+      <div class="field"><label for="tagsInput">Tags</label>
+        <input type="text" id="tagsInput" placeholder="Tags (comma separated)" list="taglist" style="width:200px"><datalist id="taglist"></datalist></div>
+      <div class="field"><span class="lbl" id="presetLbl">Date</span>
+        <div class="seg" role="group" aria-labelledby="presetLbl" id="presets"></div></div>
+      <div class="dates" id="dates" hidden>
+        <div class="field"><label for="from">From</label><input type="date" id="from"></div>
+        <span class="to">to</span>
+        <div class="field"><label for="to">To</label><input type="date" id="to"></div>
+      </div>
+      <button class="btn quiet" id="clearFilters" hidden>Clear filters</button>
+    </div>
+    <div class="folder-row phone-only" id="folderRow"></div>
+
+    <div class="count-row"><strong id="count" role="status" aria-live="polite">Loading...</strong><span id="status" role="status" aria-live="polite"></span><span class="err" id="dateErr" role="alert"></span></div>
+    <div class="loadbar" id="loadbar" hidden aria-hidden="true"><span></span></div>
+
+    <nav class="paging" aria-label="Paging, top" data-paging></nav>
+    <div class="list-head">
+      <label><input type="checkbox" id="selectAll"> Select all on this page</label>
+      <span id="selInfo"></span>
+    </div>
+    <section id="results" aria-labelledby="resultsH">
+      <h2 id="resultsH" class="vh">Bookmarks</h2>
+      <ul id="list"></ul>
+    </section>
+    <nav class="paging" aria-label="Paging, bottom" data-paging></nav>
+
+    <footer>
+      <span>Last checked: <span class="mono" id="lastChecked">17 Oct 2026, 13:05</span></span>
+      <span class="mono">v1.4.2</span>
+      <a href="https://app.raindrop.io" target="_blank" rel="noopener">Open Raindrop</a>
+      <label class="sample">Sample state
+        <select id="stateSel">
+          <option value="main">Main app</option>
+          <option value="signin">Sign-in required</option>
+          <option value="connect">Connect Raindrop</option>
+          <option value="connecterr">Connect Raindrop: error</option>
+          <option value="loading">Loading</option>
+          <option value="loaderr">Load error</option>
+          <option value="empty">No bookmarks yet</option>
+          <option value="progress">Bulk update of 1,000</option>
+          <option value="badlink">Link cannot be opened</option>
+          <option value="saveerr">Save failed</option>
+        </select>
+      </label>
+    </footer>
+  </main>
+</div>
+
+<div class="bulk" id="bulk" hidden role="region" aria-label="Bulk actions">
+  <strong id="bulkCount">0 selected</strong>
+  <button class="btn sm phone-only" id="bulkActions" aria-expanded="false">Actions</button>
+  <div class="acts">
+    <button class="btn sm" data-bulk="move">Move to folder</button>
+    <button class="btn sm" data-bulk="add">Add tags</button>
+    <button class="btn sm" data-bulk="remove">Remove tags</button>
+  </div>
+  <button class="btn sm quiet" id="bulkClear">Clear selection</button>
+  <div class="bulk-panel" id="bulkPanel" hidden></div>
+  <div class="progress" id="progress" hidden role="region" aria-label="Update progress">
+    <div class="line"><span id="progText" role="status" aria-live="polite"></span><button class="btn sm" id="jobCancel">Cancel the update</button></div>
+    <div class="bar"><span id="progBar"></span></div>
+  </div>
+</div>
+
+<dialog id="failDlg" aria-labelledby="failH">
+  <h2 id="failH">Bookmarks not updated</h2>
+  <p style="margin:0;color:var(--muted)">These bookmarks kept their old folder and tags.</p>
+  <ul class="fail-list" id="failList"></ul>
+  <div class="opts"><button class="btn primary" id="failClose">Close</button></div>
+</dialog>
+
+<dialog id="logout" aria-labelledby="logoutH">
+  <h2 id="logoutH">Logout</h2>
+  <p style="margin:0;color:var(--muted)">Choose what to log out.</p>
+  <div class="opts">
+    <button class="btn" data-logout="raindrop">Logout from Raindrop account</button>
+    <button class="btn" data-logout="admintools">Logout from Admintools</button>
+    <p class="help">This signs you out of every Admintools tool on every browser and device. It does not sign you out of Google.</p>
+    <button class="btn" data-logout="both">Logout from both</button>
+    <button class="btn primary" id="logoutCancel" autofocus>Cancel</button>
+  </div>
+  <p class="err" id="logoutErr" role="alert"></p>
+  <p id="logoutBusy" hidden style="color:var(--muted)">Logging out...</p>
+</dialog>
+
+<script>
+// Shared sample data and helpers for the Raindrop UI samples.
+// Every sample inlines this file. The rules follow docs/ui-elements.md.
+const NOW = new Date("2026-10-17T14:30:00");
+const PAGE_SIZE = 25;
+const FOLDERS = [
+  { id: -1, name: "Unsorted" },
+  { id: 1, name: "Dev tools" },
+  { id: 2, name: "Design" },
+  { id: 3, name: "Finance" },
+  { id: 4, name: "Home lab" },
+  { id: 5, name: "Reading" },
+  { id: 6, name: "Recipes" },
+];
+const BOOKMARKS = [
+  { id: 1, title: "Cloudflare R2: S3 API compatibility", link: "https://developers.cloudflare.com/r2/api/s3/api/", domain: "developers.cloudflare.com", folder: 4, tags: ["cloudflare", "backup", "s3"], created: "2026-10-17T09:12:00", visits: 3, lastVisit: "2026-10-17T13:05:00", excerpt: "R2 implements the S3 API, so most S3 clients work with a change of endpoint and credentials.", note: "Used for the key backup job.", isNew: true },
+  { id: 2, title: "SQLite WAL mode explained", link: "https://sqlite.org/wal.html", domain: "sqlite.org", folder: 1, tags: ["sqlite", "database"], created: "2026-10-16T22:40:00", visits: 7, lastVisit: "2026-10-17T08:50:00", excerpt: "Write-ahead logging gives more concurrency, because readers do not block writers and a writer does not block readers.", note: "", isNew: false },
+  { id: 3, title: "Hetzner Cloud: firewall rules reference", link: "https://docs.hetzner.com/cloud/firewalls/overview", domain: "docs.hetzner.com", folder: 4, tags: ["hetzner", "firewall"], created: "2026-10-15T08:05:00", visits: 12, lastVisit: "2026-10-16T19:20:00", excerpt: "Cloud firewalls filter traffic before it reaches the server. Rules apply per direction and per protocol.", note: "", isNew: false },
+  { id: 4, title: "Node.js 22 release notes", link: "https://nodejs.org/en/blog/release/v22.0.0", domain: "nodejs.org", folder: 1, tags: ["nodejs", "release"], created: "2026-10-14T19:30:00", visits: 2, lastVisit: "2026-10-14T19:31:00", excerpt: "Node.js 22 ships with the V8 12.4 engine, a stable watch mode and a built-in WebSocket client.", note: "", isNew: false },
+  { id: 5, title: "Shakshuka with feta", link: "https://www.seriouseats.com/shakshuka-recipe", domain: "seriouseats.com", folder: 6, tags: ["recipe", "breakfast"], created: "2026-10-13T07:45:00", visits: 5, lastVisit: "2026-10-15T07:30:00", excerpt: "Eggs poached in a spiced tomato and pepper sauce. Serve with bread and crumbled feta.", note: "", isNew: false },
+  { id: 6, title: "Raindrop.io API: Raindrops", link: "https://developer.raindrop.io/v1/raindrops", domain: "developer.raindrop.io", folder: 1, tags: ["raindrop", "api"], created: "2026-10-12T14:20:00", visits: 21, lastVisit: "2026-10-17T10:12:00", excerpt: "Endpoints to get, create, update and remove raindrops. Bulk updates append tags.", note: "Single update replaces tags. See issue #26.", isNew: false },
+  { id: 7, title: "Why your bookmarks app needs full-text search", link: "https://blog.example.net/bookmarks-search", domain: "blog.example.net", folder: -1, tags: [], created: "2026-10-17T11:02:00", visits: 0, lastVisit: null, excerpt: "A list you cannot search is a list you do not use. Search across title, excerpt and tags at once.", note: "", isNew: true },
+  { id: 8, title: "Caddy reverse proxy quick start", link: "https://caddyserver.com/docs/quick-starts/reverse-proxy", domain: "caddyserver.com", folder: 4, tags: ["caddy", "proxy", "docker"], created: "2026-10-10T16:10:00", visits: 4, lastVisit: "2026-10-11T09:00:00", excerpt: "Caddy proxies to a backend with one line of config and manages HTTPS certificates for you.", note: "", isNew: false },
+  { id: 9, title: "Index funds for Europeans", link: "https://www.bogleheads.org/wiki/EU_investing", domain: "bogleheads.org", folder: 3, tags: ["etf", "investing"], created: "2026-10-09T21:00:00", visits: 1, lastVisit: "2026-10-09T21:02:00", excerpt: "A guide to low-cost index funds, accumulating versus distributing shares, and tax residency.", note: "", isNew: false },
+  { id: 10, title: "A practical guide to CSS container queries", link: "https://web.dev/articles/cq-stable", domain: "web.dev", folder: 2, tags: ["css", "responsive"], created: "2026-10-08T10:30:00", visits: 6, lastVisit: "2026-10-12T15:40:00", excerpt: "Container queries let a component respond to the size of its parent, not the viewport.", note: "", isNew: false },
+  { id: 11, title: "Systemd timers instead of cron", link: "https://wiki.archlinux.org/title/Systemd/Timers", domain: "wiki.archlinux.org", folder: 4, tags: ["systemd", "linux"], created: "2026-10-07T09:00:00", visits: 9, lastVisit: "2026-10-16T08:10:00", excerpt: "Timers are systemd units that start other units on a schedule. They log to the journal and can catch up after downtime.", note: "", isNew: false },
+  { id: 12, title: "Restic backups to Backblaze B2", link: "https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html", domain: "restic.readthedocs.io", folder: 4, tags: ["backup", "restic"], created: "2026-10-06T13:15:00", visits: 3, lastVisit: "2026-10-06T13:40:00", excerpt: "Create a repository on B2, set the credentials in the environment, then run the first snapshot.", note: "", isNew: false },
+  { id: 13, title: "Lemon pasta in 20 minutes", link: "https://www.bonappetit.com/recipe/lemon-pasta", domain: "bonappetit.com", folder: 6, tags: ["recipe", "pasta"], created: "2026-10-05T18:40:00", visits: 2, lastVisit: "2026-10-05T18:45:00", excerpt: "Butter, lemon zest, parmesan and pasta water make the sauce. No cream.", note: "", isNew: false },
+  { id: 14, title: "The grug brained developer", link: "https://grugbrain.dev/", domain: "grugbrain.dev", folder: 5, tags: ["essay", "programming"], created: "2026-10-04T23:10:00", visits: 8, lastVisit: "2026-10-14T22:00:00", excerpt: "Complexity is the enemy. Grug says: say no, use fewer tools, and keep the code close to the problem.", note: "", isNew: false },
+  { id: 15, title: "WCAG 2.2 quick reference", link: "https://www.w3.org/WAI/WCAG22/quickref/", domain: "w3.org", folder: 2, tags: ["accessibility", "wcag"], created: "2026-10-03T11:20:00", visits: 14, lastVisit: "2026-10-17T09:30:00", excerpt: "A filterable list of all WCAG 2.2 success criteria with techniques and failures.", note: "Check 2.5.8 target size.", isNew: false },
+  { id: 16, title: "Docker Compose healthchecks", link: "https://docs.docker.com/compose/how-tos/startup-order/", domain: "docs.docker.com", folder: 1, tags: ["docker", "compose"], created: "2026-10-01T15:50:00", visits: 5, lastVisit: "2026-10-02T10:00:00", excerpt: "Use depends_on with condition: service_healthy so a service waits until its dependency is ready.", note: "", isNew: false },
+  { id: 17, title: "Python asyncio cheat sheet", link: "https://gist.github.com/example/asyncio-cheatsheet", domain: "gist.github.com", folder: 1, tags: ["python", "asyncio"], created: "2026-09-28T20:00:00", visits: 3, lastVisit: "2026-09-30T20:00:00", excerpt: "gather, create_task, timeouts and cancellation in one page.", note: "", isNew: false },
+  { id: 18, title: "Tailscale: subnet routers", link: "https://tailscale.com/kb/1019/subnets", domain: "tailscale.com", folder: 4, tags: ["tailscale", "vpn"], created: "2026-09-25T08:30:00", visits: 7, lastVisit: "2026-10-10T18:00:00", excerpt: "A subnet router gives the tailnet access to devices that cannot run Tailscale themselves.", note: "", isNew: false },
+  { id: 19, title: "How to read a balance sheet", link: "https://www.investopedia.com/terms/b/balancesheet.asp", domain: "investopedia.com", folder: 3, tags: ["accounting"], created: "2026-09-22T12:00:00", visits: 0, lastVisit: null, excerpt: "Assets equal liabilities plus equity. The sheet is a snapshot at one date, not a period.", note: "", isNew: false },
+  { id: 20, title: "Fermented hot sauce", link: "https://www.noma.dk/guide/fermented-hot-sauce", domain: "noma.dk", folder: 6, tags: ["recipe", "fermentation"], created: "2026-09-20T17:25:00", visits: 1, lastVisit: "2026-09-20T17:30:00", excerpt: "Chillies, salt and time. A two-week lacto-ferment, then blend with vinegar.", note: "", isNew: false },
+  { id: 21, title: "Choosing a monospace font", link: "https://www.programmingfonts.org/", domain: "programmingfonts.org", folder: 2, tags: ["typography", "fonts"], created: "2026-09-18T22:00:00", visits: 4, lastVisit: "2026-09-19T08:00:00", excerpt: "Compare coding fonts side by side with your own sample text.", note: "", isNew: false },
+  { id: 22, title: "OAuth 2.0 refresh token rotation", link: "https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation", domain: "auth0.com", folder: 1, tags: ["oauth", "security"], created: "2026-09-15T10:10:00", visits: 6, lastVisit: "2026-10-13T11:00:00", excerpt: "Each refresh returns a new refresh token and invalidates the old one. Reuse of an old token revokes the family.", note: "", isNew: false },
+  { id: 23, title: "Hetzner Storage Box with rclone", link: "https://community.hetzner.com/tutorials/storage-box-rclone", domain: "community.hetzner.com", folder: 4, tags: ["hetzner", "rclone", "backup"], created: "2026-09-12T09:45:00", visits: 2, lastVisit: "2026-09-12T10:00:00", excerpt: "Mount or sync a Storage Box over SFTP with rclone. Includes a systemd unit example.", note: "", isNew: false },
+  { id: 24, title: "On Writing Well: a summary", link: "https://www.readwise.io/summaries/on-writing-well", domain: "readwise.io", folder: 5, tags: ["writing", "book"], created: "2026-09-10T21:30:00", visits: 1, lastVisit: "2026-09-10T21:35:00", excerpt: "Clutter is the disease of writing. Strip every sentence to its cleanest components.", note: "", isNew: false },
+  { id: 25, title: "Pi-hole v6 upgrade notes", link: "https://pi-hole.net/blog/2025/02/18/introducing-pi-hole-v6/", domain: "pi-hole.net", folder: 4, tags: ["dns", "pihole"], created: "2026-09-05T19:15:00", visits: 3, lastVisit: "2026-09-06T08:00:00", excerpt: "Version 6 removes lighttpd and PHP. The web interface and API run in the FTL binary.", note: "", isNew: false },
+  { id: 26, title: "Cloudflare Workers KV versus D1", link: "https://developers.cloudflare.com/workers/platform/storage-options/", domain: "developers.cloudflare.com", folder: 1, tags: ["cloudflare", "database"], created: "2026-08-30T14:00:00", visits: 2, lastVisit: "2026-08-30T14:05:00", excerpt: "KV is eventually consistent and read-heavy. D1 is SQLite with transactions. Pick by access pattern.", note: "", isNew: false },
+  { id: 27, title: "Overnight oats, five ways", link: "https://cookieandkate.com/overnight-oats-recipe/", domain: "cookieandkate.com", folder: 6, tags: ["recipe", "breakfast"], created: "2026-08-25T07:20:00", visits: 0, lastVisit: null, excerpt: "A base ratio of oats to milk, then five flavour variations.", note: "", isNew: false },
+  { id: 28, title: "Grid by Example", link: "https://gridbyexample.com/examples/", domain: "gridbyexample.com", folder: 2, tags: ["css", "grid"], created: "2026-08-20T16:35:00", visits: 10, lastVisit: "2026-10-08T10:00:00", excerpt: "Small, copyable examples of CSS Grid layouts, from the basics to named areas.", note: "", isNew: false },
+  { id: 29, title: "Expense tracking in a plain spreadsheet", link: "https://www.example.org/expense-sheet", domain: "example.org", folder: -1, tags: [], created: "2026-08-15T12:00:00", visits: 0, lastVisit: null, excerpt: "One sheet, three columns: date, amount, category. A pivot table does the rest.", note: "", isNew: false },
+  { id: 30, title: "SSH certificates with step-ca", link: "https://smallstep.com/docs/step-ca/", domain: "smallstep.com", folder: 4, tags: ["ssh", "security"], created: "2026-08-10T10:00:00", visits: 2, lastVisit: "2026-08-10T10:30:00", excerpt: "Issue short-lived SSH certificates from a private CA instead of copying public keys to each host.", note: "", isNew: false },
+  { id: 31, title: "JavaScript Temporal API primer", link: "https://tc39.es/proposal-temporal/docs/", domain: "tc39.es", folder: 1, tags: ["javascript", "dates"], created: "2026-08-02T18:30:00", visits: 5, lastVisit: "2026-09-01T18:30:00", excerpt: "Temporal replaces Date with immutable types for instants, plain dates and zoned date-times.", note: "", isNew: false },
+  { id: 32, title: "Capital gains tax in Israel: FAQ", link: "https://www.gov.il/en/departments/faq/capital-gains", domain: "gov.il", folder: 3, tags: ["tax", "israel"], created: "2026-07-20T09:00:00", visits: 1, lastVisit: "2026-07-20T09:10:00", excerpt: "Rates, exemptions and the reporting deadline for the sale of securities.", note: "", isNew: false },
+  { id: 33, title: "Chicken shawarma, oven method", link: "https://www.recipetineats.com/chicken-sharwama-middle-eastern/", domain: "recipetineats.com", folder: 6, tags: ["recipe", "dinner"], created: "2026-07-12T19:00:00", visits: 3, lastVisit: "2026-09-18T18:00:00", excerpt: "A yoghurt and spice marinade, then a hot oven. Serve with pita and pickles.", note: "", isNew: false },
+  { id: 34, title: "Postgres versus SQLite for small apps", link: "https://blog.example.dev/postgres-vs-sqlite", domain: "blog.example.dev", folder: 5, tags: ["sqlite", "postgres", "essay"], created: "2026-06-30T22:15:00", visits: 4, lastVisit: "2026-07-02T22:00:00", excerpt: "For one server and one writer, SQLite removes a whole service from the stack.", note: "", isNew: false },
+  { id: 35, title: "Uptime Kuma", link: "https://github.com/louislam/uptime-kuma", domain: "github.com", folder: 4, tags: ["monitoring", "docker"], created: "2026-06-10T11:40:00", visits: 6, lastVisit: "2026-10-01T11:00:00", excerpt: "A self-hosted monitoring tool with status pages and notifications.", note: "", isNew: false },
+  { id: 36, title: "Design Tokens Community Group: format draft", link: "https://tr.designtokens.org/format/", domain: "tr.designtokens.org", folder: 2, tags: ["design-tokens", "css"], created: "2026-05-22T15:00:00", visits: 2, lastVisit: "2026-05-22T15:20:00", excerpt: "A JSON format for colour, dimension and typography tokens that tools can exchange.", note: "", isNew: false },
+  { id: 37, title: "The Twelve-Factor App", link: "https://12factor.net/", domain: "12factor.net", folder: 5, tags: ["architecture"], created: "2026-04-15T20:00:00", visits: 11, lastVisit: "2026-09-29T20:00:00", excerpt: "Twelve principles for apps that deploy cleanly: config in the environment, stateless processes, logs as streams.", note: "", isNew: false },
+  { id: 38, title: "Tahini cookies", link: "https://www.ottolenghi.co.uk/recipes/tahini-cookies", domain: "ottolenghi.co.uk", folder: 6, tags: ["recipe", "baking"], created: "2026-03-08T16:00:00", visits: 1, lastVisit: "2026-03-08T16:05:00", excerpt: "Soft, nutty cookies with tahini in the dough and sesame seeds on top.", note: "", isNew: false },
+  { id: 39, title: "Flask to FastAPI migration notes", link: "https://www.example.io/flask-to-fastapi", domain: "example.io", folder: -1, tags: ["python"], created: "2026-02-14T10:30:00", visits: 0, lastVisit: null, excerpt: "Routes, dependency injection and Pydantic models, mapped one to one.", note: "", isNew: false },
+  { id: 40, title: "Bash strict mode", link: "http://redsymbol.net/articles/unofficial-bash-strict-mode/", domain: "redsymbol.net", folder: 1, tags: ["bash"], created: "2025-11-20T09:00:00", visits: 9, lastVisit: "2026-10-05T09:00:00", excerpt: "set -euo pipefail, and what each flag protects you from.", note: "", isNew: false },
+  { id: 41, title: "Keyboard shortcuts for Raindrop", link: "https://help.raindrop.io/shortcuts", domain: "help.raindrop.io", folder: -1, tags: [], created: "2026-10-16T15:33:00", visits: 0, lastVisit: null, excerpt: "Every shortcut in the web app and the desktop app.", note: "", isNew: true },
+  { id: 42, title: "Hetzner price list 2026", link: "https://www.hetzner.com/cloud/pricing", domain: "hetzner.com", folder: 3, tags: ["hetzner", "pricing"], created: "2026-10-11T08:00:00", visits: 2, lastVisit: "2026-10-11T08:05:00", excerpt: "Cloud, dedicated and storage prices by location.", note: "", isNew: false },
+];
+
+// Date and time in the user's local time, for example "17 Oct 2026, 13:05".
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+}
+
+// Age text per section 5.3 of docs/ui-elements.md.
+function ageText(iso) {
+  const ms = NOW - new Date(iso);
+  const min = Math.max(1, Math.floor(ms / 60000));
+  if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  if (d < 21) return `${d} day${d === 1 ? "" : "s"} ago`;
+  if (d < 183) { const w = Math.floor(d / 7); return `${w} week${w === 1 ? "" : "s"} ago`; }
+  return "more than 6 months ago";
+}
+
+function visitText(b) {
+  return b.visits > 0 ? `visited ${b.visits}× (last ${fmtDate(b.lastVisit)})` : "not visited";
+}
+
+function folderName(id) {
+  const f = FOLDERS.find(f => f.id === id);
+  return f ? f.name : "Unsorted";
+}
+
+function needsSort(b) {
+  return b.folder === -1 || b.tags.length === 0;
+}
+
+// Start of the local day, n days before today.
+function dayStart(daysBack) {
+  const d = new Date(NOW); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - daysBack); return d;
+}
+
+function presetRange(preset, from, to) {
+  if (preset === "today") return [dayStart(0), null];
+  if (preset === "last7") return [dayStart(6), null];
+  if (preset === "last30") return [dayStart(29), null];
+  if (preset === "custom") {
+    const a = from ? new Date(from + "T00:00:00") : null;
+    const b = to ? new Date(to + "T23:59:59") : null;
+    return [a, b];
+  }
+  return [null, null];
+}
+
+// Filter rules from sections 4.3 to 4.11. f = { q, folder, tags, status, visited, preset, from, to }.
+function matches(b, f) {
+  const words = (f.q || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length) {
+    const hay = [b.title, b.excerpt, b.note, b.link, b.domain, b.tags.join(" "), folderName(b.folder)].join(" ").toLowerCase();
+    if (!words.every(w => hay.includes(w))) return false;
+  }
+  if (f.folder !== undefined && f.folder !== null && f.folder !== "" && b.folder !== Number(f.folder)) return false;
+  const tags = (f.tags || []).map(t => t.toLowerCase()).filter(Boolean);
+  if (tags.length && !tags.every(t => b.tags.map(x => x.toLowerCase()).includes(t))) return false;
+  if (f.status === "new" && !b.isNew) return false;
+  if (f.status === "needs" && !needsSort(b)) return false;
+  if (f.visited === "yes" && b.visits === 0) return false;
+  if (f.visited === "no" && b.visits > 0) return false;
+  const [from, to] = presetRange(f.preset, f.from, f.to);
+  const c = new Date(b.created);
+  if (from && c < from) return false;
+  if (to && c > to) return false;
+  return true;
+}
+
+function sortBookmarks(list, sort) {
+  const byNewest = (a, b) => b.created.localeCompare(a.created);
+  const copy = list.slice();
+  switch (sort) {
+    case "oldest": return copy.sort((a, b) => a.created.localeCompare(b.created));
+    case "az": return copy.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+    case "za": return copy.sort((a, b) => b.title.localeCompare(a.title, undefined, { sensitivity: "base" }));
+    case "folder": return copy.sort((a, b) => folderName(a.folder).localeCompare(folderName(b.folder)) || byNewest(a, b));
+    case "visits": return copy.sort((a, b) => b.visits - a.visits || byNewest(a, b));
+    default: return copy.sort(byNewest);
+  }
+}
+
+// Counts that ignore the other filters (section 2).
+function presetCounts() {
+  const out = {};
+  for (const p of ["all", "today", "last7", "last30"]) out[p] = BOOKMARKS.filter(b => matches(b, { preset: p })).length;
+  return out;
+}
+function folderCounts() {
+  const out = {};
+  for (const f of FOLDERS) out[f.id] = BOOKMARKS.filter(b => b.folder === f.id).length;
+  return out;
+}
+function tagCounts() {
+  const out = {};
+  for (const b of BOOKMARKS) for (const t of b.tags) out[t] = (out[t] || 0) + 1;
+  return Object.entries(out).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+</script>
+
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const PRESETS = [["all", "All time"], ["today", "Today"], ["last7", "Last 7 days"], ["last30", "Last 30 days"], ["custom", "Custom"]];
+
+  const state = {
+    q: "", folder: "", tags: [], status: "", visited: "", preset: "all", from: "", to: "",
+    sort: "newest", page: 1, pageSize: PAGE_SIZE, selected: new Set(), editing: null, draft: null, cursor: -1, allTags: false,
+    loading: false, loadError: "", emptyAccount: false,
+  };
+  let pageItems = [];
+  let job = null;        // the running bulk update (section 5.6)
+  let undoTimer = null;  // removes the Undo link after 30 s
+
+  function hue(domain) { let h = 0; for (const c of domain) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+  function filters() { return { q: state.q, folder: state.folder, tags: state.tags, status: state.status, visited: state.visited, preset: state.preset, from: state.from, to: state.to }; }
+  function activeFilterCount() {
+    return (state.q ? 1 : 0) + (state.folder !== "" ? 1 : 0) + (state.tags.length ? 1 : 0) + (state.status ? 1 : 0) + (state.visited ? 1 : 0) + (state.preset !== "all" ? 1 : 0);
+  }
+  function dateError() {
+    return state.preset === "custom" && state.from && state.to && state.from > state.to ? "Error: The start date must be on or before the end date." : "";
+  }
+  function setStatus(text) { $("#status").textContent = text; }
+
+  // ---- Sidebar ----
+  function renderFolders() {
+    const counts = folderCounts();
+    const items = [{ id: "", name: "All folders", n: BOOKMARKS.length }].concat(
+      FOLDERS.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })).map(f => ({ id: f.id, name: f.name, n: counts[f.id] || 0 }))
+    );
+    $("#folderList").innerHTML = items.map(f => `<li><button class="nav-item" data-folder="${f.id}" aria-pressed="${String(state.folder) === String(f.id)}"><span class="ic" aria-hidden="true">${f.id === "" ? "▤" : "▭"}</span><span class="name">${esc(f.name)}</span><span class="n">${f.n}</span></button></li>`).join("");
+    $("#folderRow").innerHTML = `<span class="lbl">Folder</span>` + items.map(f => `<button class="chip${String(state.folder) === String(f.id) ? " on" : ""}" data-folder="${f.id}" aria-pressed="${String(state.folder) === String(f.id)}">${esc(f.name)} (${f.n})</button>`).join("");
+  }
+  function renderTags() {
+    const all = tagCounts();
+    const shown = state.allTags ? all : all.slice(0, 12);
+    $("#tagList").innerHTML = shown.map(([t, n]) => `<li><button class="nav-item" data-tag="${esc(t)}" aria-pressed="${state.tags.includes(t)}"><span class="ic" aria-hidden="true">#</span><span class="name">${esc(t)}</span><span class="n">${n}</span></button></li>`).join("");
+    const more = $("#moreTags");
+    more.hidden = all.length <= 12;
+    more.textContent = state.allTags ? "Show fewer" : `Show all (${all.length})`;
+    more.setAttribute("aria-expanded", String(state.allTags));
+    $("#taglist").innerHTML = all.map(([t, n]) => `<option value="${esc(t)}">${n}</option>`).join("");
+  }
+
+  // ---- Toolbar ----
+  function renderPresets() {
+    const counts = presetCounts();
+    $("#presets").innerHTML = PRESETS.map(([k, label]) => `<button type="button" data-preset="${k}" aria-pressed="${state.preset === k}">${label}${counts[k] !== undefined ? ` <span class="n">${counts[k]}</span>` : ""}</button>`).join("");
+    $("#dates").hidden = state.preset !== "custom";
+    $("#clearFilters").hidden = activeFilterCount() === 0;
+    $("#filtersBtn").textContent = `Filters (${activeFilterCount()})`;
+    $("#dateErr").textContent = dateError();
+  }
+
+  // ---- List ----
+  function render() {
+    const err = dateError();
+    $("#dateErr").textContent = err;
+    const matched = err ? [] : sortBookmarks(BOOKMARKS.filter(b => matches(b, filters())), state.sort);
+    const pages = Math.max(1, Math.ceil(matched.length / state.pageSize));
+    if (state.page > pages) state.page = pages;
+    const start = (state.page - 1) * state.pageSize;
+    pageItems = matched.slice(start, start + state.pageSize);
+
+    const count = $("#count");
+    const list = $("#list");
+    if (state.loading) { renderSelection(); return; }
+    if (state.loadError) {
+      count.textContent = state.loadError;
+      list.innerHTML = `<li class="empty">The list did not load.<br><button class="btn sm" id="retry">Try again</button></li>`;
+      $$("[data-paging]").forEach(nav => nav.innerHTML = "");
+      renderSelection(); return;
+    }
+    if (state.emptyAccount) {
+      count.textContent = "0 bookmarks";
+      list.innerHTML = `<li class="empty">No bookmarks yet.<br><span style="font-size:13px">Save a page in Raindrop, then click "Check for new bookmarks".</span></li>`;
+      $$("[data-paging]").forEach(nav => nav.innerHTML = "");
+      renderSelection(); return;
+    }
+    if (err) count.textContent = "Fix the dates to see results.";
+    else if (!matched.length) count.textContent = "No bookmarks match.";
+    else if (activeFilterCount() === 0 && matched.length <= state.pageSize) count.textContent = `${matched.length} bookmarks`;
+    else count.textContent = `Showing ${start + 1}–${start + pageItems.length} of ${matched.length} bookmarks`;
+
+    $$("[data-paging]").forEach(nav => {
+      nav.innerHTML = `<button class="btn sm" data-page="prev" ${state.page <= 1 ? "disabled" : ""}>Previous</button>
+        <span class="page">Page ${state.page} of ${pages}</span>
+        <button class="btn sm" data-page="next" ${state.page >= pages ? "disabled" : ""}>Next</button>
+        <label class="lbl">Page size <select data-pagesize aria-label="Page size">${[25, 50, 100].map(n => `<option value="${n}" ${n === state.pageSize ? "selected" : ""}>${n}</option>`).join("")}</select></label>`;
+    });
+
+    if (!pageItems.length) {
+      list.innerHTML = `<li class="empty">${err ? "" : "No bookmarks match."}</li>`;
+    } else {
+      list.innerHTML = pageItems.map((b, i) => rowHtml(b, i)).join("");
+    }
+    const ed = state.editing !== null ? $(`.row[data-id="${state.editing}"] .editor`) : null;
+    if (ed) { const sel = $("select", ed); if (sel && document.activeElement !== sel && !ed.contains(document.activeElement)) sel.focus(); }
+    renderSelection();
+  }
+
+  function rowHtml(b, i) {
+    const webLink = /^https?:\/\//.test(b.link);
+    const badges = b.isNew ? `<span class="badge new">New</span>` : needsSort(b) ? `<span class="badge needs">No folder or tags</span>` : "";
+    const meta = [b.domain, folderName(b.folder), `<span class="d">${fmtDate(b.created)}</span> (${ageText(b.created)})`, visitText(b)].filter(Boolean).join(" · ");
+    const excerpt = b.excerpt ? `<div class="excerpt">${esc(b.excerpt.slice(0, 200))}</div>` : "";
+    const title = webLink
+      ? `<a class="title" href="${esc(b.link)}" target="_blank" rel="noopener" aria-label="${esc(b.title)}, opens in a new tab" title="${esc(b.title)}">${esc(b.title || b.link)}</a>`
+      : `<span class="title" title="${esc(b.title)}">${esc(b.title)}</span> <span class="warn-text">This link cannot be opened.</span>`;
+    const editing = state.editing === b.id;
+    const sel = state.selected.has(b.id);
+    const actions = editing ? editorHtml(b) : `<div class="actions">
+        <button class="btn sm" data-edit="${b.id}">Edit</button>
+        ${(b.isNew || needsSort(b)) ? `<button class="btn sm" data-suggest="${b.id}">Suggest folder and tags</button>` : ""}
+      </div>`;
+    return `<li class="row${sel ? " selected" : ""}${state.cursor === i ? " cursor" : ""}" data-id="${b.id}" data-index="${i}">
+      <input class="chk" type="checkbox" data-select="${b.id}" ${sel ? "checked" : ""} aria-label="Select ${esc(b.title)}">
+      <span class="tile" style="--h:${hue(b.domain)}" aria-hidden="true">${esc((b.domain || "?")[0].toUpperCase())}</span>
+      <div class="body">
+        <div class="title-line">${title}${badges}</div>
+        <div class="meta">${meta}</div>
+        ${excerpt}
+      </div>
+      <div class="chips">${b.tags.map(t => `<button class="chip${state.tags.includes(t) ? " on" : ""}" data-tag="${esc(t)}" aria-pressed="${state.tags.includes(t)}">${esc(t)}</button>`).join("")}</div>
+      ${actions}
+    </li>`;
+  }
+
+  function editorHtml(b) {
+    const d = state.draft;
+    const opts = FOLDERS.map(f => `<option value="${f.id}" ${f.id === d.folder ? "selected" : ""}>${esc(f.name)}</option>`).join("") + `<option value="new">+ Create a new folder...</option>`;
+    const chips = d.tags.length ? d.tags.map(t => `<span class="chip">${esc(t)}<button class="x" data-rmtag="${esc(t)}" aria-label="Remove tag ${esc(t)}">×</button></span>`).join("") : `<span class="none">none</span>`;
+    return `<div class="editor" role="group" aria-label="Edit ${esc(b.title)}">
+      <div class="line">
+        <div class="field"><label for="edFolder">Folder</label><select id="edFolder">${opts}</select></div>
+        <div class="field" id="edNewFolder" ${d.folder === "new" ? "" : "hidden"}><label for="edNewFolderName">New folder name</label>
+          <div style="display:flex;gap:6px"><input type="text" id="edNewFolderName" placeholder="New folder name"><button class="btn sm" id="edCreateFolder">Create folder</button><button class="btn sm" id="edCancelFolder">Cancel</button></div></div>
+      </div>
+      <div class="tags-row"><span class="lbl">Tags</span>${chips}</div>
+      <div class="line">
+        <div class="field"><label for="edTag">Add tag</label><input type="text" id="edTag" placeholder="Add tag, press Enter" list="taglist"></div>
+        <button class="btn sm primary" id="edSave">Save</button>
+        <button class="btn sm" id="edDiscard">Discard</button>
+      </div>
+      <span class="err" id="edErr" role="alert">${esc(d.err || "")}</span>
+      <span class="warn-text" id="edWarn">${esc(d.warn || "")}</span>
+      ${d.confirmDiscard ? `<div class="confirm">Discard the changes to this bookmark? <button class="btn sm" id="edDiscardYes">Discard</button><button class="btn sm" id="edDiscardNo">Keep editing</button></div>` : ""}
+    </div>`;
+  }
+
+  function renderSelection() {
+    const n = state.selected.size;
+    const onPage = pageItems.filter(b => state.selected.has(b.id)).length;
+    const all = $("#selectAll");
+    all.checked = pageItems.length > 0 && onPage === pageItems.length;
+    all.indeterminate = onPage > 0 && onPage < pageItems.length;
+    const matched = BOOKMARKS.filter(b => matches(b, filters())).length;
+    $("#selInfo").innerHTML = n ? `${n} selected${all.checked && matched > n ? ` · <a href="#" data-selectall-matching>Select all ${matched} matching bookmarks</a>` : ""} · <a href="#" data-clear-sel>Clear selection</a>` : "";
+    const bulk = $("#bulk");
+    const running = !!(job && job.status === "running");
+    bulk.hidden = n === 0 && !running;
+    bulk.classList.toggle("running", running);
+    $("#bulkCount").textContent = running ? job.label : `${n} selected`;
+    if (n === 0) { $("#bulkPanel").hidden = true; $("#bulkPanel").innerHTML = ""; document.body.classList.remove("bulk-open"); $("#bulkActions").setAttribute("aria-expanded", "false"); }
+  }
+
+  // ---- Editing ----
+  function openEditor(b, draft) {
+    state.editing = b.id;
+    state.draft = Object.assign({ folder: b.folder, tags: b.tags.slice(), err: "", warn: "", orig: { folder: b.folder, tags: b.tags.slice() } }, draft || {});
+    render();
+    $("#edFolder")?.focus();
+  }
+  function draftChanged() { const d = state.draft; return d.folder !== d.orig.folder || d.tags.join("\u0001") !== d.orig.tags.join("\u0001"); }
+  function closeEditor() {
+    const id = state.editing;
+    state.editing = null; state.draft = null;
+    render();
+    $(`.row[data-id="${id}"] [data-edit]`)?.focus();
+  }
+  function addDraftTag(raw) {
+    const d = state.draft; const t = raw.trim();
+    if (!t) return;
+    if (t.length > 50) { d.err = "Error: A tag can have at most 50 characters."; return; }
+    if (t.includes(",")) { d.err = "Error: Tags cannot contain commas."; return; }
+    if (d.tags.some(x => x.toLowerCase() === t.toLowerCase())) { d.err = ""; return; }
+    if (d.tags.length >= 20) { d.err = "Error: A bookmark can have at most 20 tags."; return; }
+    d.tags.push(t); d.err = "";
+  }
+  function suggestFor(b) {
+    const words = (b.title + " " + b.excerpt + " " + b.domain).toLowerCase();
+    const known = tagCounts().map(([t]) => t).filter(t => words.includes(t.toLowerCase()) && !b.tags.includes(t));
+    const score = {};
+    for (const o of BOOKMARKS) if (o.id !== b.id) for (const t of o.tags) if (known.includes(t) || b.tags.includes(t)) score[o.folder] = (score[o.folder] || 0) + 1;
+    let folder = b.folder;
+    const best = Object.entries(score).sort((a, c) => c[1] - a[1])[0];
+    if (best) folder = Number(best[0]);
+    if (folder === -1) folder = /recipe|oats|cookie/.test(words) ? 6 : /tax|fund|price/.test(words) ? 3 : /css|font|design/.test(words) ? 2 : 1;
+    const extra = known.slice(0, 4);
+    if (!extra.length) extra.push(b.domain.split(".").slice(-2, -1)[0]);
+    return { folder, tags: b.tags.concat(extra.slice(0, 4)) };
+  }
+
+  // ---- Bulk (section 5.6) ----
+  // The panel holds the target choice and the confirm step in one place.
+  // The question line updates as the target changes. Over 100 bookmarks, Apply is not the primary button.
+  function bulkPanel(kind) {
+    const ids = Array.from(state.selected); const n = ids.length;
+    const p = $("#bulkPanel"); p.hidden = false; p.dataset.kind = kind;
+    const apply = `<button class="btn sm${n > 100 ? "" : " primary"}" data-bulk-go="${kind}" id="bulkGo">Apply to ${n} bookmark${n === 1 ? "" : "s"}</button><button class="btn sm" data-bulk-cancel>Cancel</button>`;
+    if (kind === "move") {
+      p.innerHTML = `<div class="field"><label for="bulkFolder">Move to folder</label><select id="bulkFolder">${FOLDERS.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}<option value="new">+ Create a new folder...</option></select></div>
+        <div class="field" id="bulkNewFolder" hidden><label for="bulkNewFolderName">New folder name</label>
+          <div style="display:flex;gap:6px"><input type="text" id="bulkNewFolderName" placeholder="New folder name"><button class="btn sm" id="bulkCreateFolder">Create folder</button></div></div>
+        <strong id="bulkQ" role="status"></strong>${apply}<span class="err" id="bulkErr" role="alert"></span>`;
+    } else if (kind === "add") {
+      p.innerHTML = `<div class="field"><label for="bulkTags">Add tags</label><input type="text" id="bulkTags" placeholder="Tags (comma separated)" list="taglist"></div>
+        <strong id="bulkQ" role="status"></strong>${apply}<span class="err" id="bulkErr" role="alert"></span>`;
+    } else {
+      const counts = {};
+      for (const id of ids) for (const t of BOOKMARKS.find(b => b.id === id).tags) counts[t] = (counts[t] || 0) + 1;
+      const picks = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      p.innerHTML = `<div class="field"><span class="lbl">Remove tags</span><div class="picks">${picks.length ? picks.map(([t, c]) => `<label><input type="checkbox" value="${esc(t)}"> ${esc(t)} (${c})</label>`).join("") : "<span class='lbl'>The selected bookmarks have no tags.</span>"}</div></div>
+        <strong id="bulkQ" role="status"></strong>${apply}<span class="err" id="bulkErr" role="alert"></span>`;
+      if (!picks.length) $("#bulkGo").disabled = true;
+    }
+    bulkQuestion();
+  }
+  function bulkTagsTyped() { return ($("#bulkTags")?.value || "").split(",").map(s => s.trim()).filter(Boolean); }
+  function bulkQuestion() {
+    const kind = $("#bulkPanel").dataset.kind; const n = state.selected.size; const q = $("#bulkQ"); if (!q) return;
+    const plural = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+    if (kind === "move") { const v = $("#bulkFolder").value; q.textContent = v === "new" ? "" : `Move ${plural(n, "bookmark")} to ${folderName(Number(v))}?`; }
+    else if (kind === "add") { const t = bulkTagsTyped(); q.textContent = t.length ? `Add ${plural(t.length, "tag")} to ${plural(n, "bookmark")}?` : ""; }
+    else { const t = $$("#bulkPanel input:checked").length; q.textContent = t ? `Remove ${plural(t, "tag")} from ${plural(n, "bookmark")}?` : ""; }
+  }
+  function bulkApply(kind) {
+    const ids = Array.from(state.selected);
+    if (!ids.length) { $("#bulkErr").textContent = "Error: No bookmarks are selected."; return; }
+    if (kind === "move") {
+      const v = $("#bulkFolder").value; if (v === "new") { $("#bulkErr").textContent = "Error: Create the folder first, or choose an existing folder."; return; }
+      startJob("move", ids, { folder: Number(v) }, { label: `Move to ${folderName(Number(v))}` });
+    } else if (kind === "add") {
+      const tags = bulkTagsTyped();
+      if (!tags.length) { $("#bulkErr").textContent = "Error: Add at least one tag."; return; }
+      const bad = tags.find(t => t.length > 50); if (bad) { $("#bulkErr").textContent = "Error: A tag can have at most 50 characters."; return; }
+      startJob("add", ids, { tags }, { label: "Add tags" });
+    } else {
+      const tags = $$("#bulkPanel input:checked").map(i => i.value);
+      if (!tags.length) { $("#bulkErr").textContent = "Error: Choose at least one tag."; return; }
+      startJob("remove", ids, { tags }, { label: "Remove tags" });
+    }
+  }
+
+  // ---- Bulk job with progress panel and undo ----
+  // The real app runs the job on the server, one Raindrop call every 700 ms. The sample uses a short tick.
+  function startJob(kind, ids, payload, opts = {}) {
+    if (job && job.status === "running") return;
+    const snap = ids.map(id => { const b = BOOKMARKS.find(x => x.id === id); return b ? { id, folder: b.folder, tags: b.tags.slice() } : null; }).filter(Boolean);
+    job = { kind, ids, payload, snap, done: 0, total: opts.total || ids.length, failed: [], status: "running", demo: !!opts.demo, label: opts.label || "Update" };
+    state.selected.clear();
+    $("#bulkPanel").hidden = true; $("#bulkPanel").innerHTML = "";
+    clearTimeout(undoTimer); setStatus("");
+    renderProgress(); renderSelection();
+    $("#jobCancel").focus();
+    job.timer = setInterval(() => tick(job.demo ? 9 : 1), job.demo ? 60 : 140);
+  }
+  function applyOne(id) {
+    const b = BOOKMARKS.find(x => x.id === id); if (!b) return;
+    const p = job.payload;
+    if (job.kind === "move") b.folder = p.folder;
+    else if (job.kind === "add") { for (const t of p.tags) if (!b.tags.some(x => x.toLowerCase() === t.toLowerCase()) && b.tags.length < 20) b.tags.push(t); }
+    else if (job.kind === "remove") b.tags = b.tags.filter(t => !p.tags.includes(t));
+    else if (job.kind === "undo") { const s = p.snap.find(x => x.id === id); if (s) { b.folder = s.folder; b.tags = s.tags.slice(); } }
+  }
+  function tick(n) {
+    for (let i = 0; i < n && job.done < job.total; i++) {
+      if (job.demo) { if ([137, 512, 880].includes(job.done)) job.failed.push({ title: `Bookmark #${1000 + job.done}`, why: "Raindrop returned 429: too many requests." }); }
+      else applyOne(job.ids[job.done]);
+      job.done++;
+    }
+    renderProgress();
+    if (job.done >= job.total) finishJob("done");
+  }
+  function renderProgress() {
+    const running = job && job.status === "running";
+    $("#progress").hidden = !running;
+    if (!running) return;
+    $("#progText").textContent = `Updating ${job.done} of ${job.total} bookmarks.`;
+    $("#progBar").style.width = `${Math.round(100 * job.done / job.total)}%`;
+  }
+  function finishJob(status) {
+    clearInterval(job.timer); job.status = status;
+    const m = job.failed.length; const n = job.done - m;
+    const s = $("#status");
+    s.innerHTML = `${status === "cancelled" ? "Update cancelled. " : ""}Updated ${n}. Not updated ${m}.`
+      + (m ? ` <button class="status-link" id="showFail">Show ${m} failure${m === 1 ? "" : "s"}</button>` : "")
+      + (job.kind !== "undo" && n > 0 ? ` · <button class="status-link" id="undoBtn">Undo</button>` : "");
+    undoTimer = setTimeout(() => $("#undoBtn")?.remove(), 30000);
+    renderProgress(); renderFolders(); renderTags(); render();
+    $("#selectAll").focus();
+  }
+  function undoJob() {
+    const prev = job;
+    if (prev.demo) { job = null; startJob("undo", [], { snap: [] }, { demo: true, total: prev.total, label: "Undo" }); return; }
+    job = null;
+    startJob("undo", prev.snap.map(s => s.id), { snap: prev.snap }, { label: "Undo" });
+  }
+
+  // ---- Events ----
+  let debounce;
+  $("#q").addEventListener("input", e => {
+    const v = e.target.value;
+    $("#qCount").textContent = v.length > 150 ? `${v.length}/200` : "";
+    clearTimeout(debounce);
+    debounce = setTimeout(() => { state.q = v.trim(); state.page = 1; state.selected.clear(); renderPresets(); render(); }, 250);
+  });
+  $("#sort").addEventListener("change", e => { state.sort = e.target.value; state.page = 1; state.selected.clear(); render(); });
+  $("#statusFilter").addEventListener("change", e => { state.status = e.target.value; state.page = 1; state.selected.clear(); renderPresets(); render(); });
+  $("#visitedFilter").addEventListener("change", e => { state.visited = e.target.value; state.page = 1; state.selected.clear(); renderPresets(); render(); });
+  let tagDebounce;
+  $("#tagsInput").addEventListener("input", e => {
+    clearTimeout(tagDebounce);
+    tagDebounce = setTimeout(() => { state.tags = e.target.value.split(",").map(s => s.trim()).filter(Boolean).slice(0, 10); state.page = 1; state.selected.clear(); renderTags(); renderPresets(); render(); }, 250);
+  });
+  $("#from").addEventListener("change", e => { state.from = e.target.value; state.page = 1; renderPresets(); render(); });
+  $("#to").addEventListener("change", e => { state.to = e.target.value; state.page = 1; renderPresets(); render(); });
+  $("#clearFilters").addEventListener("click", () => {
+    Object.assign(state, { q: "", folder: "", tags: [], status: "", visited: "", preset: "all", from: "", to: "", page: 1 });
+    state.selected.clear();
+    $("#q").value = ""; $("#qCount").textContent = ""; $("#tagsInput").value = ""; $("#statusFilter").value = ""; $("#visitedFilter").value = ""; $("#from").value = ""; $("#to").value = "";
+    renderFolders(); renderTags(); renderPresets(); render(); $("#q").focus();
+  });
+
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-preset],[data-folder],[data-tag],[data-page],[data-select],[data-edit],[data-suggest],[data-rmtag],[data-bulk],[data-bulk-go],[data-bulk-cancel],[data-selectall-matching],[data-clear-sel],#edSave,#edDiscard,#edDiscardYes,#edDiscardNo,#edCreateFolder,#edCancelFolder,#bulkClear,#bulkCreateFolder,#jobCancel,#undoBtn,#showFail,#retry");
+    if (!t) return;
+    if (t.dataset.preset) { state.preset = t.dataset.preset; state.page = 1; state.selected.clear(); renderPresets(); render(); if (state.preset === "custom") $("#from").focus(); return; }
+    if (t.dataset.folder !== undefined) { state.folder = t.dataset.folder; state.page = 1; state.selected.clear(); renderFolders(); renderPresets(); render(); return; }
+    if (t.dataset.tag !== undefined) {
+      const tag = t.dataset.tag;
+      state.tags = state.tags.includes(tag) ? state.tags.filter(x => x !== tag) : state.tags.concat(tag).slice(0, 10);
+      $("#tagsInput").value = state.tags.join(", ");
+      state.page = 1; state.selected.clear(); renderTags(); renderPresets(); render(); return;
+    }
+    if (t.dataset.page) { state.page += t.dataset.page === "next" ? 1 : -1; render(); $("#results").scrollIntoView({ block: "start" }); return; }
+    if (t.dataset.select) { const id = Number(t.dataset.select);
+      if (e.shiftKey && state.lastSel !== undefined) { const a = pageItems.findIndex(b => b.id === state.lastSel), c = pageItems.findIndex(b => b.id === id); const [lo, hi] = [Math.min(a, c), Math.max(a, c)]; for (let i = lo; i <= hi; i++) state.selected.add(pageItems[i].id); }
+      else if (t.checked) state.selected.add(id); else state.selected.delete(id);
+      state.lastSel = id; render(); return; }
+    if (t.dataset.edit) { openEditor(BOOKMARKS.find(b => b.id === Number(t.dataset.edit))); return; }
+    if (t.dataset.suggest) {
+      const b = BOOKMARKS.find(x => x.id === Number(t.dataset.suggest));
+      t.disabled = true; t.textContent = "Asking the model..."; setStatus("Asking the model...");
+      // Bookmark 29 shows the failure case: the model named a folder that does not exist.
+      setTimeout(() => { setStatus(""); openEditor(b, b.id === 29 ? { err: 'Error: Suggestion failed: the model folder "Personal finance" does not match a folder label.' } : suggestFor(b)); }, 1200); return;
+    }
+    if (t.dataset.rmtag !== undefined) { state.draft.tags = state.draft.tags.filter(x => x !== t.dataset.rmtag); state.draft.err = ""; render(); $("#edTag").focus(); return; }
+    if (t.id === "edSave") {
+      const d = state.draft; const b = BOOKMARKS.find(x => x.id === state.editing);
+      if (d.folder === "new") { d.err = "Error: Create the folder first, or choose an existing folder."; render(); return; }
+      // Raindrop stores tags in lower case without spaces. A difference shows the warning from section 5.7.
+      const stored = d.tags.map(t => t.toLowerCase().replace(/\s+/g, "-"));
+      const mismatch = stored.join("\u0001") !== d.tags.join("\u0001");
+      b.folder = Number(d.folder); b.tags = stored; b.isNew = false;
+      setStatus(mismatch ? "Saved. Raindrop stored different tags than you chose. Review the tags on this bookmark." : `Saved "${b.title}".`);
+      closeEditor(); renderFolders(); renderTags(); return;
+    }
+    if (t.id === "edDiscard") { if (draftChanged()) { state.draft.confirmDiscard = true; render(); $("#edDiscardYes").focus(); } else closeEditor(); return; }
+    if (t.id === "edDiscardYes") { closeEditor(); return; }
+    if (t.id === "edDiscardNo") { state.draft.confirmDiscard = false; render(); $("#edFolder").focus(); return; }
+    if (t.id === "edCreateFolder") {
+      const name = $("#edNewFolderName").value.trim(); const d = state.draft;
+      if (!name) d.err = "Error: Create folder failed: The folder name is empty.";
+      else if (name.length > 100) d.err = "Error: Create folder failed: The folder name can have at most 100 characters.";
+      else if (FOLDERS.some(f => f.name.toLowerCase() === name.toLowerCase())) d.err = `Error: Create folder failed: A folder named ${name} already exists.`;
+      else { const id = Math.max(...FOLDERS.map(f => f.id)) + 1; FOLDERS.push({ id, name }); d.folder = id; d.err = ""; renderFolders(); }
+      render(); return;
+    }
+    if (t.id === "edCancelFolder") { state.draft.folder = state.draft.orig.folder; render(); $("#edFolder").focus(); return; }
+    if (t.dataset.bulk) { bulkPanel(t.dataset.bulk); $("#bulkPanel select, #bulkPanel input")?.focus(); return; }
+    if (t.dataset.bulkGo) { bulkApply(t.dataset.bulkGo); return; }
+    if (t.hasAttribute("data-bulk-cancel")) { $("#bulkPanel").hidden = true; $("#bulkPanel").innerHTML = ""; $(`[data-bulk="move"]`).focus(); return; }
+    if (t.id === "bulkCreateFolder") {
+      const name = $("#bulkNewFolderName").value.trim(); let err = "";
+      if (!name) err = "Error: Create folder failed: The folder name is empty.";
+      else if (name.length > 100) err = "Error: Create folder failed: The folder name can have at most 100 characters.";
+      else if (FOLDERS.some(f => f.name.toLowerCase() === name.toLowerCase())) err = `Error: Create folder failed: A folder named ${name} already exists.`;
+      $("#bulkErr").textContent = err; if (err) return;
+      const id = Math.max(...FOLDERS.map(f => f.id)) + 1; FOLDERS.push({ id, name }); renderFolders();
+      bulkPanel("move"); $("#bulkFolder").value = String(id); bulkQuestion(); $("#bulkGo").focus(); return;
+    }
+    if (t.id === "jobCancel") { finishJob("cancelled"); return; }
+    if (t.id === "undoBtn") { undoJob(); return; }
+    if (t.id === "showFail") {
+      $("#failList").innerHTML = job.failed.map(f => `<li><span>${esc(f.title)}</span><span class="why">${esc(f.why)}</span></li>`).join("");
+      $("#failDlg").showModal(); $("#failClose").focus(); return;
+    }
+    if (t.id === "retry") { state.loadError = ""; $("#stateSel").value = "main"; render(); $("#q").focus(); return; }
+    if (t.id === "bulkClear" || t.hasAttribute("data-clear-sel")) { e.preventDefault(); state.selected.clear(); render(); return; }
+    if (t.hasAttribute("data-selectall-matching")) { e.preventDefault(); BOOKMARKS.filter(b => matches(b, filters())).forEach(b => state.selected.add(b.id)); render(); return; }
+  });
+
+  document.addEventListener("change", e => {
+    const t = e.target;
+    if (t.matches("[data-pagesize]")) { state.pageSize = Number(t.value); state.page = 1; render(); }
+    if (t.id === "edFolder") { state.draft.folder = t.value === "new" ? "new" : Number(t.value); render(); if (t.value === "new") $("#edNewFolderName").focus(); else $("#edFolder").focus(); }
+    if (t.id === "selectAll") { if (t.checked) pageItems.forEach(b => state.selected.add(b.id)); else pageItems.forEach(b => state.selected.delete(b.id)); render(); }
+    if (t.id === "bulkFolder") { const nf = $("#bulkNewFolder"); nf.hidden = t.value !== "new"; $("#bulkErr").textContent = ""; bulkQuestion(); if (t.value === "new") $("#bulkNewFolderName").focus(); }
+    if (t.closest("#bulkPanel .picks")) { bulkQuestion(); $("#bulkErr").textContent = ""; }
+  });
+  document.addEventListener("input", e => { if (e.target.id === "bulkTags") { bulkQuestion(); $("#bulkErr").textContent = ""; } });
+  $("#failClose").addEventListener("click", () => $("#failDlg").close());
+
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t.id === "edTag" && e.key === "Enter") { e.preventDefault(); addDraftTag(t.value); render(); const i = $("#edTag"); i.value = ""; i.focus(); return; }
+    if (t.id === "edNewFolderName" && e.key === "Enter") { e.preventDefault(); $("#edCreateFolder").click(); return; }
+    if (t.id === "bulkTags" && e.key === "Enter") { e.preventDefault(); $("[data-bulk-go='add']").click(); return; }
+    if (t.id === "bulkNewFolderName" && e.key === "Enter") { e.preventDefault(); $("#bulkCreateFolder").click(); return; }
+    if (t.id === "newFolderName") { if (e.key === "Enter") { e.preventDefault(); $("#newFolderOk").click(); } if (e.key === "Escape") $("#newFolderCancel").click(); return; }
+    if (e.key === "Escape" && state.editing !== null && !t.closest("dialog")) { if (!draftChanged()) closeEditor(); return; }
+    if (e.key === "Escape" && document.body.classList.contains("filters-open")) { closeSheet(); return; }
+    const typing = t.matches("input, select, textarea");
+    if (typing) return;
+    if (e.key === "/") { e.preventDefault(); $("#q").focus(); $("#q").select(); return; }
+    if (e.key === "j" || e.key === "k") {
+      if (!pageItems.length) return;
+      state.cursor = e.key === "j" ? Math.min(pageItems.length - 1, state.cursor + 1) : Math.max(0, state.cursor - 1);
+      $$(".row").forEach(r => r.classList.toggle("cursor", Number(r.dataset.index) === state.cursor));
+      $(`.row[data-index="${state.cursor}"]`)?.scrollIntoView({ block: "nearest" }); return;
+    }
+    if (e.key === "e" && state.cursor >= 0 && pageItems[state.cursor]) { openEditor(pageItems[state.cursor]); return; }
+    if (e.key === "Enter" && state.cursor >= 0 && pageItems[state.cursor]) { $(`.row[data-index="${state.cursor}"] a.title`)?.click(); return; }
+  });
+
+  // Create folder (sidebar)
+  $("#newFolderBtn").addEventListener("click", () => { const box = $("#newFolderBox"); box.hidden = !box.hidden; $("#newFolderBtn").setAttribute("aria-expanded", String(!box.hidden)); if (!box.hidden) $("#newFolderName").focus(); });
+  $("#newFolderCancel").addEventListener("click", () => { $("#newFolderBox").hidden = true; $("#newFolderName").value = ""; $("#newFolderErr").textContent = ""; $("#newFolderName").removeAttribute("aria-invalid"); $("#newFolderBtn").setAttribute("aria-expanded", "false"); $("#newFolderBtn").focus(); });
+  $("#newFolderOk").addEventListener("click", () => {
+    const input = $("#newFolderName"); const name = input.value.trim(); let err = "";
+    if (!name) err = "Error: The folder name is empty.";
+    else if (name.length > 100) err = "Error: The folder name can have at most 100 characters.";
+    else if (FOLDERS.some(f => f.name.toLowerCase() === name.toLowerCase())) err = `Error: A folder named ${name} already exists.`;
+    $("#newFolderErr").textContent = err; input.setAttribute("aria-invalid", err ? "true" : "false");
+    if (err) return;
+    FOLDERS.push({ id: Math.max(...FOLDERS.map(f => f.id)) + 1, name });
+    $("#newFolderCancel").click(); renderFolders(); setStatus(`Folder "${name}" created.`);
+  });
+  $("#moreTags").addEventListener("click", () => { state.allTags = !state.allTags; renderTags(); });
+
+  // Check for new bookmarks
+  $("#pull").addEventListener("click", () => {
+    const b = $("#pull"); b.disabled = true; b.innerHTML = `<span class="spin" aria-hidden="true"></span> Checking for new bookmarks...`; setStatus("Checking for new bookmarks...");
+    setTimeout(() => { b.disabled = false; b.textContent = "Check for new bookmarks"; const n = BOOKMARKS.filter(x => x.isNew).length; setStatus(`${n} new bookmark${n === 1 ? "" : "s"} found. They are labelled New.`); $("#lastChecked").textContent = fmtDate(NOW.toISOString()); renderFolders(); renderTags(); render(); }, 1500);
+  });
+
+  // Logout dialog (section 4.2)
+  // Option 1 removes the Raindrop connection and shows the "Connect Raindrop" gate.
+  // Option 2 is a full-page visit to the Admintools sign-out page. Option 3 runs 1, then 2.
+  const dlg = $("#logout");
+  $("#logoutBtn").addEventListener("click", () => { $("#logoutErr").textContent = ""; $("#logoutBusy").hidden = true; dlg.showModal(); $("#logoutCancel").focus(); });
+  $("#logoutCancel").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("close", () => { if (!$("#gate").hidden) return; $("#logoutBtn").focus(); });
+  $$("[data-logout]").forEach(b => b.addEventListener("click", () => {
+    const which = b.dataset.logout;
+    $$("#logout button").forEach(x => x.disabled = true); $("#logoutBusy").hidden = false; $("#logoutErr").textContent = "";
+    const reset = () => { $$("#logout button").forEach(x => x.disabled = false); $("#logoutBusy").hidden = true; };
+    const toAdmintools = () => { reset(); dlg.close(); setSample("out"); };
+    if (which === "admintools") { setTimeout(toAdmintools, 500); return; }
+    setTimeout(() => {
+      if (which === "raindrop") { reset(); dlg.close(); setSample("connect"); return; }
+      toAdmintools();
+    }, 900);
+  }));
+
+  // ---- Sample states: reach every screen and state from the footer control ----
+  const demo = { link: null, loadTimer: null };
+  function restoreDemo() {
+    state.loading = false; state.loadError = ""; state.emptyAccount = false;
+    clearInterval(demo.loadTimer); $("#loadbar").hidden = true;
+    if (demo.link) { BOOKMARKS.find(x => x.id === 7).link = demo.link; demo.link = null; }
+    if (job && job.demo && job.status === "running") { clearInterval(job.timer); job = null; renderProgress(); }
+  }
+  function setSample(v) {
+    restoreDemo();
+    $("#stateSel").value = v;
+    const gateViews = ["signin", "connect", "connecterr", "out"];
+    const inGate = gateViews.includes(v);
+    $("#gate").hidden = !inGate; $(".app").hidden = inGate;
+    if (inGate) $("#bulk").hidden = true;
+    $("#gateSignin").hidden = v !== "signin";
+    $("#gateConnect").hidden = !(v === "connect" || v === "connecterr");
+    $("#gateOut").hidden = v !== "out";
+    $("#connectErr").textContent = v === "connecterr" ? "Error: Raindrop did not connect: access_denied. You cancelled the approval." : "";
+    if (inGate) { $("#gate .btn.primary:not([hidden])")?.focus(); return; }
+    if (v === "loading") {
+      state.loading = true; let n = 0; const total = 312;
+      $("#count").textContent = "Loading..."; $("#list").innerHTML = `<li class="empty">Loading...</li>`; $$("[data-paging]").forEach(nav => nav.innerHTML = "");
+      $("#loadbar").hidden = false; $("#loadbar > span").style.width = "0";
+      demo.loadTimer = setInterval(() => {
+        n = Math.min(total, n + 24);
+        $("#count").textContent = `Loading bookmarks ${n}/${total}`; $("#loadbar > span").style.width = `${Math.round(100 * n / total)}%`;
+        if (n >= total) { clearInterval(demo.loadTimer); setTimeout(() => setSample("main"), 300); }
+      }, 160);
+      return;
+    }
+    if (v === "loaderr") { state.loadError = "Error: Load failed: Raindrop returned 429 (too many requests). Try again in a minute."; render(); return; }
+    if (v === "empty") { state.emptyAccount = true; render(); return; }
+    if (v === "progress") { render(); startJob("move", [], { folder: 4 }, { demo: true, total: 1000, label: "Move to Home lab" }); return; }
+    if (v === "badlink") { const b = BOOKMARKS.find(x => x.id === 7); demo.link = b.link; b.link = "file:///home/example/notes/bookmarks.md"; render(); return; }
+    if (v === "saveerr") { render(); openEditor(BOOKMARKS.find(x => x.id === 2), { err: "Error: Save failed: Raindrop returned 429 (too many requests). Try again in a minute." }); return; }
+    render();
+  }
+  $("#stateSel").addEventListener("change", e => setSample(e.target.value));
+  $("#gateBack").addEventListener("click", () => { setSample("main"); $("#q").focus(); });
+  $("#connectBtn").addEventListener("click", e => { e.preventDefault(); setSample("main"); setStatus("Raindrop connected."); $("#q").focus(); });
+
+  // Phone bulk bar: "<n> selected" and an "Actions" button that opens the action sheet.
+  $("#bulkActions").addEventListener("click", () => { const open = document.body.classList.toggle("bulk-open"); $("#bulkActions").setAttribute("aria-expanded", String(open)); });
+
+  // Phone filter sheet: the toolbar moves into the sidebar while the sheet is open.
+  const phone = window.matchMedia("(max-width: 599px)");
+  function openSheet() { $("#sheetSlot").appendChild($("#toolbar")); document.body.classList.add("filters-open"); $("#filtersBtn").setAttribute("aria-expanded", "true"); $("#sheetSlot select, #sheetSlot input")?.focus(); }
+  function closeSheet() { $("#main").insertBefore($("#toolbar"), $("#folderRow")); document.body.classList.remove("filters-open"); $("#filtersBtn").setAttribute("aria-expanded", "false"); $("#filtersBtn").focus(); }
+  $("#filtersBtn").addEventListener("click", openSheet);
+  $("#sheetClose").addEventListener("click", closeSheet);
+  phone.addEventListener("change", m => { if (!m.matches && document.body.classList.contains("filters-open")) closeSheet(); });
+
+  renderFolders(); renderTags(); renderPresets(); render();
+  setStatus("3 new bookmarks found. They are labelled New.");
+})();
+</script>

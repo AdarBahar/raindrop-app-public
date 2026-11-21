@@ -1,0 +1,7 @@
+.env
+sync-log.jsonl
+__pycache__/
+.DS_Store
+app/backend/.env
+app/backend/data/
+app/backend/node_modules/

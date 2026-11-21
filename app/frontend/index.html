@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Raindrop search</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head><body>
+<a class="skip" href="#appMain">Skip to results</a>
+<h1 class="sr-only">Raindrop search</h1>
+
+<section id="gate" class="gate" hidden>
+  <div class="gate-box">
+    <div id="signinPart" hidden>
+      <h2>Sign in required</h2>
+      <p>Open this app through the Admintools sign-in page.</p>
+    </div>
+    <div id="connectPart" hidden>
+      <h2>Connect Raindrop</h2>
+      <p>Approve this app once. It then reads only your own bookmarks.</p>
+      <a id="connectBtn" class="btn primary" href="/oauth/start">Connect Raindrop</a>
+      <p id="connectErr" class="err" role="alert"></p>
+      <button id="profileGateBtn" class="btn quiet sm" aria-haspopup="dialog">My context</button>
+    </div>
+  </div>
+</section>
+
+<div id="app" class="app" hidden>
+  <aside id="side" aria-label="Folders and tags">
+    <div class="brand"><span class="brand-name">Raindrop</span><span class="brand-sub">Search</span></div>
+    <div class="account">
+      <div id="account" class="who"></div>
+      <button id="logoutBtn" class="btn sm">Logout</button>
+      <button id="profileBtn" class="btn quiet sm" aria-haspopup="dialog">My context</button>
+      <button id="deleteBtn" class="btn quiet sm" aria-haspopup="dialog">Delete my data</button>
+    </div>
+    <div id="sheetSlot"></div>
+    <nav aria-label="Folders">
+      <h2>Folders</h2>
+      <ul id="folders" class="nav-list"></ul>
+      <button id="newFolderBtn" class="btn quiet sm" aria-expanded="false" aria-controls="newFolderBox">+ Create a new folder</button>
+      <div id="newFolderBox" class="new-folder" hidden>
+        <label for="newFolderName" class="lbl">Folder name</label>
+        <input id="newFolderName" placeholder="Folder name" aria-describedby="newFolderErr" maxlength="100">
+        <div class="line"><button id="newFolderOk" class="btn sm primary">Create</button><button id="newFolderCancel" class="btn sm">Cancel</button></div>
+        <span id="newFolderErr" class="err" role="alert"></span>
+      </div>
+    </nav>
+    <nav aria-label="Tags">
+      <h2>Tags</h2>
+      <ul id="tagList" class="nav-list"></ul>
+      <button id="moreTags" class="btn quiet sm" aria-expanded="false" hidden>Show all</button>
+    </nav>
+    <button id="helpBtn" class="btn quiet sm" aria-haspopup="dialog">Keyboard shortcuts (?)</button>
+    <button id="sheetClose" class="btn primary">Show bookmarks</button>
+  </aside>
+
+  <main id="appMain" tabindex="-1">
+    <header class="top">
+      <div class="field search-field">
+        <label for="q">Search</label>
+        <span class="glass" aria-hidden="true">⌕</span>
+        <input id="q" type="search" placeholder="Search title, note, excerpt, link, tag, folder..." autofocus maxlength="200" autocomplete="off">
+        <span id="qCount" class="counter" aria-live="polite"></span>
+      </div>
+      <button id="pull" class="btn">Check for new bookmarks</button>
+      <button id="filtersBtn" class="btn phone-only" aria-expanded="false">Filters (0)</button>
+    </header>
+
+    <div id="toolbar" class="toolbar">
+      <div class="field"><label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="az">Title A-Z</option>
+          <option value="za">Title Z-A</option>
+          <option value="folder">Folder</option>
+          <option value="visits">Most visited</option>
+        </select></div>
+      <div class="field"><label for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="">Status: all</option>
+          <option value="new">New</option>
+          <option value="needs">Unsorted or no tags</option>
+          <option value="dupes">Duplicates</option>
+        </select></div>
+      <div class="field"><label for="visited">Visited</label>
+        <select id="visited">
+          <option value="">Visited: all</option>
+          <option value="yes">Visited</option>
+          <option value="no">Not visited</option>
+        </select></div>
+      <div class="field"><label for="tags">Tags</label>
+        <input id="tags" placeholder="Tags (comma separated)" list="taglist" autocomplete="off">
+        <datalist id="taglist"></datalist></div>
+      <div class="field"><span class="lbl" id="presetLbl">Date</span>
+        <div class="seg" role="group" aria-labelledby="presetLbl">
+          <button type="button" data-preset="all" data-label="All time" aria-pressed="false">All time</button>
+          <button type="button" data-preset="today" data-label="Today" class="on" aria-pressed="true">Today</button>
+          <button type="button" data-preset="last7" data-label="Last 7 days" aria-pressed="false">Last 7 days</button>
+          <button type="button" data-preset="last30" data-label="Last 30 days" aria-pressed="false">Last 30 days</button>
+          <button type="button" data-preset="custom" data-label="Custom" aria-pressed="false">Custom</button>
+        </div></div>
+      <div id="dates" class="dates" hidden>
+        <div class="field"><label for="from">From</label><input id="from" type="date"></div>
+        <span class="to">to</span>
+        <div class="field"><label for="to">To</label><input id="to" type="date"></div>
+      </div>
+      <button id="clearFilters" class="btn quiet" hidden>Clear filters</button>
+    </div>
+    <div id="folderRow" class="folder-row phone-only"></div>
+
+    <div class="count-row" role="status" aria-live="polite"><strong id="count">Loading...</strong><span id="status"></span></div>
+    <div id="needsSwitch" class="seg needs-switch" role="group" aria-label="Show bookmarks with" hidden>
+      <button type="button" data-needs="" data-label="Any of these" aria-pressed="true" class="on">Any of these</button>
+      <button type="button" data-needs="both" data-label="No folder and no tags" aria-pressed="false">No folder and no tags</button>
+      <button type="button" data-needs="folder" data-label="No folder" aria-pressed="false">No folder</button>
+      <button type="button" data-needs="tags" data-label="No tags" aria-pressed="false">No tags</button>
+    </div>
+    <p id="dateErr" class="err" role="alert"></p>
+    <div id="loadbar" class="loadbar" hidden aria-hidden="true"><span></span></div>
+
+    <nav class="paging" aria-label="Paging, top" data-paging></nav>
+    <div class="list-head">
+      <label><input type="checkbox" id="selectAll"> Select all on this page</label>
+      <span id="selInfo"></span>
+    </div>
+    <section id="results" aria-labelledby="resultsH">
+      <h2 id="resultsH" class="sr-only">Bookmarks</h2>
+      <ul id="list"></ul>
+    </section>
+    <nav class="paging" aria-label="Paging, bottom" data-paging></nav>
+
+    <footer>
+      <span id="lastChecked" hidden></span>
+      <time id="syncedAt" hidden></time>
+      <span id="syncWarn" class="warn-text" hidden></span>
+      <a href="https://app.raindrop.io" target="_blank" rel="noopener">Open Raindrop</a>
+    </footer>
+  </main>
+</div>
+
+<div id="bulk" class="bulk" hidden role="region" aria-label="Bulk actions">
+  <div id="review" class="review" hidden role="region" aria-labelledby="reviewH">
+    <div class="review-head">
+      <h2 id="reviewH" tabindex="-1">Suggested folders and tags</h2>
+      <p class="muted" id="reviewSaved">Nothing is saved yet. Apply also adds the proposed new tags. A bookmark that is in a folder stays there unless you select the suggested folder. A new folder is used only when you choose it.</p>
+      <div class="line" id="reviewAll"><button id="reviewApplyAll" class="btn sm primary">Apply all</button><button id="reviewClearAll" class="btn sm">Clear all</button></div>
+      <p id="reviewHint" class="muted review-hint"></p>
+      <p id="reviewErr" class="err" role="alert"></p>
+    </div>
+    <ul id="reviewList" class="review-list"></ul>
+    <p class="muted" id="suggestNotice">Suggesting sends the title, link, note and excerpt of each bookmark, its current folder and tags, your folder names, your known tags and the active entries of "My context" to the language model this app uses. Raindrop is not changed by a suggestion.</p>
+  </div>
+  <strong id="bulkCount">0 selected</strong>
+  <button id="bulkActions" class="btn sm phone-only" aria-expanded="false">Actions</button>
+  <div class="acts">
+    <button class="btn sm" data-bulk="suggest">AI Suggest folder and tags</button>
+    <button class="btn sm" id="bulkEdit" hidden>Edit</button>
+    <button class="btn sm" data-bulk="move">Move to folder</button>
+    <button class="btn sm" data-bulk="addTags">Add tags</button>
+    <button class="btn sm" data-bulk="removeTags">Remove tags</button>
+    <button class="btn sm" data-bulk="archive">Archive</button>
+  </div>
+  <button id="bulkClear" class="btn sm quiet">Clear bookmarks selection</button>
+  <div id="bulkPanel" class="bulk-panel" hidden></div>
+  <div id="progress" class="progress" hidden role="region" aria-label="Update progress">
+    <div class="line"><span id="progText" role="status" aria-live="polite"></span><button id="jobCancel" class="btn sm">Cancel the update</button></div>
+    <div class="bar"><span id="progBar"></span></div>
+  </div>
+</div>
+<div id="bulkPoints" class="bulk-points" aria-hidden="true"></div>
+
+<dialog id="logout" aria-labelledby="logoutH">
+  <h2 id="logoutH">Logout</h2>
+  <p class="muted">Choose what to log out.</p>
+  <div class="opts">
+    <button class="btn primary" data-logout="both" hidden>Logout from both</button>
+    <button class="btn" data-logout="raindrop">Logout from Raindrop account</button>
+    <button class="btn" data-logout="admintools" hidden>Logout from Admintools</button>
+    <p class="help" id="logoutHelp" hidden>This signs you out of every Admintools tool on every browser and device. It does not sign you out of Google.</p>
+    <button id="logoutCancel" class="btn">Cancel</button>
+  </div>
+  <p id="logoutErr" class="err" role="alert"></p>
+  <p id="logoutBusy" class="muted" hidden>Logging out...</p>
+</dialog>
+
+<dialog id="helpDlg" aria-labelledby="helpH">
+  <h2 id="helpH">Keyboard shortcuts</h2>
+  <table class="keys">
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>↓</kbd> <kbd>↑</kbd></td><td>Move to the next or the previous bookmark</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Mark or unmark the bookmark in focus</td></tr>
+      <tr><td><kbd>→</kbd> <kbd>←</kbd></td><td>Go to the next or the previous page</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd> (<kbd>Cmd</kbd>+<kbd>A</kbd> on macOS)</td><td>Select all bookmarks on this page, or clear them</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close the editor, the folder box or a dialog</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Open this list</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">The shortcuts do not work while you type in a box or choose in a list.</p>
+  <div class="opts"><button id="helpClose" class="btn primary">Close</button></div>
+</dialog>
+
+<dialog id="deleteDlg" aria-labelledby="deleteH">
+  <h2 id="deleteH">Delete my data</h2>
+  <p class="muted">This removes the Raindrop connection and what the app keeps about you: the visit counts, the New marks, the log of changes with bookmark titles, and your profile ("My context"). Your bookmarks in Raindrop are not changed.</p>
+  <div class="opts">
+    <button id="deleteOk" class="btn primary">Delete my data</button>
+    <button id="deleteCancel" class="btn">Cancel</button>
+  </div>
+  <p id="deleteErr" class="err" role="alert"></p>
+</dialog>
+
+<dialog id="profileDlg" class="wide" aria-labelledby="profileH">
+  <h2 id="profileH" tabindex="-1">My context</h2>
+  <p class="muted">Describe your projects and interests here. The app gives the active entries to the language model, so that a suggestion can link a bookmark to one of your projects. A suggested tag from an entry is added only after you select it.</p>
+  <ul class="pf-facts muted">
+    <li>The profile is stored in the database of this app.</li>
+    <li>The app sends the active entries to the language model with each suggestion request: the text about you, and the name, description and tag of each entry. An entry that is not active is not sent.</li>
+    <li>A tag from the profile that you then apply to a bookmark becomes a normal tag in Raindrop. For a confidential project, use a tag that does not show its name.</li>
+    <li>"Logout from Raindrop account" keeps the profile. "Delete my data" removes it.</li>
+    <li>Do not write passwords or other secrets here.</li>
+  </ul>
+  <p id="pfLoadErr" class="err" role="alert"></p>
+  <div class="pf-budget">
+    <span id="pfBudgetText" role="status" aria-live="polite"></span>
+    <div class="bar" aria-hidden="true"><span id="pfBudgetBar"></span></div>
+  </div>
+
+  <section class="pf-part" aria-labelledby="pfAboutH">
+    <h3 id="pfAboutH">About you</h3>
+    <div class="field">
+      <label for="pfAbout">A short text about you (optional)</label>
+      <textarea id="pfAbout" rows="3" dir="auto" aria-describedby="pfAboutCount pfAboutErr"></textarea>
+      <span id="pfAboutCount" class="pf-count"></span>
+    </div>
+    <div class="line"><button id="pfAboutSave" class="btn sm">Save the text</button><span id="pfAboutMsg" class="muted" role="status"></span></div>
+    <p id="pfAboutErr" class="err" role="alert"></p>
+  </section>
+
+  <section class="pf-part" aria-labelledby="pfEntriesH">
+    <h3 id="pfEntriesH">Projects and interests</h3>
+    <p id="pfSummary" class="muted" role="status"></p>
+    <ul id="pfList" class="pf-list"></ul>
+    <button id="pfAdd" class="btn sm" aria-expanded="false" aria-controls="pfForm">+ Add an entry</button>
+    <div id="pfForm" class="pf-form" role="group" aria-labelledby="pfFormH" hidden>
+      <h4 id="pfFormH" tabindex="-1">New entry</h4>
+      <div class="field"><label for="pfKind">Kind</label>
+        <select id="pfKind"><option value="project">Project</option><option value="interest">Interest</option></select></div>
+      <div class="field"><label for="pfName">Name</label>
+        <input id="pfName" dir="auto" autocomplete="off" aria-describedby="pfErr"></div>
+      <div class="field"><label for="pfDesc">Description: what it is about</label>
+        <textarea id="pfDesc" rows="3" dir="auto" aria-describedby="pfDescCount pfErr"></textarea>
+        <span id="pfDescCount" class="pf-count"></span></div>
+      <label class="pf-check"><input type="checkbox" id="pfActive" checked> Active. Only an active entry is part of the profile that the model gets.</label>
+      <div class="field"><label for="pfTag">Tag (optional)</label>
+        <input id="pfTag" autocomplete="off" aria-describedby="pfTagHelp pfErr">
+        <span id="pfTagHelp" class="help">Suggestions can propose this tag for a bookmark that belongs to this entry. Leave it empty, and the entry is context only.</span></div>
+      <div id="pfTagDefaultRow" class="line" hidden><button id="pfTagDefault" class="btn sm" type="button"></button></div>
+      <p id="pfTagNote" class="muted" hidden>Raindrop is not connected. The app cannot check if this tag is already a tag in Raindrop.</p>
+      <p class="muted">State: <b id="pfState">Context only</b></p>
+      <div id="pfReuse" class="confirm" hidden>
+        <span id="pfReuseText" class="warn-text"></span>
+        <button id="pfReuseOk" class="btn sm">Use this tag anyway</button>
+      </div>
+      <p id="pfErr" class="err" role="alert"></p>
+      <div class="line"><button id="pfSave" class="btn sm primary">Save the entry</button><button id="pfCancel" class="btn sm">Cancel</button></div>
+    </div>
+  </section>
+  <div class="opts"><button id="profileClose" class="btn">Close</button></div>
+</dialog>
+
+<dialog id="failDlg" aria-labelledby="failH">
+  <h2 id="failH">Bookmarks not updated</h2>
+  <p class="muted">These bookmarks kept their old folder and tags.</p>
+  <ul id="failList" class="fail-list"></ul>
+  <div class="opts"><button id="failClose" class="btn primary">Close</button></div>
+</dialog>
+
+<script src="/static/datetime.js"></script>
+<script src="/static/rules.js"></script>
+<script src="/static/core.js"></script>
+<script src="/static/filters.js"></script>
+<script src="/static/list.js"></script>
+<script src="/static/bulk.js"></script>
+<script src="/static/review.js"></script>
+<script src="/static/bulk-drawer.js"></script>
+<script src="/static/keys.js"></script>
+<script src="/static/context.js"></script>
+<script src="/static/app.js"></script>
+</body></html>

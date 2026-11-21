@@ -1,0 +1,42 @@
+{
+  "note": "Built by hand from the object shape in the Raindrop API documentation. Replace it with a capture from a live test account (docs/bookmark-store-plan.md, PR 2).",
+  "collections": [
+    {
+      "_id": 5001, "title": "Dev", "count": 3, "color": "#1a73e8", "view": "list", "sort": 2,
+      "public": false, "expanded": true, "cover": [], "created": "2025-03-01T08:00:00.000Z",
+      "lastUpdate": "2026-10-01T09:30:00.000Z", "access": { "for": 1, "level": 4, "root": true, "draggable": true },
+      "user": { "$ref": "user", "$id": 77 }
+    },
+    {
+      "_id": 5002, "title": "קריאה", "count": 1, "view": "grid", "sort": 5,
+      "parent": { "$id": 5001 }, "created": "2025-04-11T12:00:00.000Z", "lastUpdate": "2026-09-30T20:15:00.000Z",
+      "user": { "$ref": "user", "$id": 77 }
+    }
+  ],
+  "bookmarks": [
+    {
+      "_id": 900000001, "link": "https://example.com/a?x=1&y=2", "title": "Plain bookmark", "excerpt": "An excerpt.",
+      "note": "A note with \"quotes\", a backslash \\ and a newline\nin it.", "type": "link", "cover": "https://example.com/c.png",
+      "tags": ["dev", "Node.js"], "removed": false, "domain": "example.com", "collectionId": 5001,
+      "collection": { "$ref": "collections", "$id": 5001, "oid": 5001 },
+      "media": [{ "link": "https://example.com/c.png", "type": "image" }], "highlights": [],
+      "created": "2026-10-01T10:00:00.000Z", "lastUpdate": "2026-10-01T10:05:00.000Z", "sort": 900000001,
+      "important": true, "broken": false, "creatorRef": { "_id": 77, "name": "Test User" },
+      "cache": { "status": "ready", "size": 20480, "created": "2026-10-01T10:01:00.000Z" }, "user": { "$ref": "users", "$id": 77 }
+    },
+    {
+      "_id": 900000002, "link": "https://example.org/עברית", "title": "כותרת בעברית 🙂", "excerpt": "", "note": "",
+      "type": "article", "tags": [], "removed": false, "domain": "example.org", "collectionId": -1,
+      "collection": { "$ref": "collections", "$id": -1, "oid": -1 }, "media": [], "highlights": [{ "_id": "h1", "text": "line", "color": "yellow" }],
+      "created": "2026-10-02T07:30:00.000Z", "lastUpdate": "2026-10-02T07:30:00.000Z", "sort": 900000002,
+      "file": null, "reminder": null, "user": { "$ref": "users", "$id": 77 }
+    },
+    {
+      "_id": 900000003, "link": "https://example.net/video", "title": "In a child folder", "excerpt": "Video.", "note": "",
+      "type": "video", "cover": "", "tags": ["watch"], "removed": false, "domain": "example.net", "collectionId": 5002,
+      "collection": { "$ref": "collections", "$id": 5002, "oid": 5002 }, "media": [{ "link": "https://example.net/v.jpg" }], "highlights": [],
+      "created": "2025-12-24T23:59:59.999Z", "lastUpdate": "2026-01-02T00:00:00.000Z", "sort": 900000003,
+      "user": { "$ref": "users", "$id": 77 }
+    }
+  ]
+}
