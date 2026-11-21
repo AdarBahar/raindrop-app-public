@@ -9,6 +9,25 @@ export class ReplyError extends Error {}
 // Send one chat request to the OpenAI-compatible endpoint. Return the reply text.
 // `who` is the user the call is made for. Users take turns for the shared endpoint.
 // `onUsage` gets the token use that the endpoint reports, when it reports one. The evaluation script uses it.
+// A timeout or an abort. These are not retried.
+function isTimeout(err) {
+  return err?.name === 'TimeoutError' || err?.name === 'AbortError';
+}
+
+// Release the body of an answer that is not used, so the connection is free again.
+async function releaseBody(res) {
+  try {
+    await res.body?.cancel();
+  } catch {
+    // The body is already closed or broken. Nothing to release.
+  }
+}
+
+// The pause before the next try of a failed request. It grows with each try. The tests set it to zero.
+function retryWait(attempt) {
+  return (config.llm.retryWaitMs ?? 2000) * (attempt + 1);
+}
+
 export async function chat(messages, { model, maxTokens = 1500, who = '', onUsage = null } = {}) {
   const { endpoint, token } = config.llm;
   if (!endpoint || !token) throw new Error('API_Endpoint or token is missing in the env file');
@@ -22,18 +41,44 @@ export async function chat(messages, { model, maxTokens = 1500, who = '', onUsag
   let data = null;
   for (let attempt = 0; attempt < 4; attempt++) {
     await takeTurn('llm', who, config.llm.minIntervalMs);
-    const res = await fetch(`${endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(180000),
-    });
+    let res;
+    try {
+      res = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(180000),
+      });
+    } catch (err) {
+      // A timeout is not retried: each try can take 180 seconds. A connection failure is retried.
+      if (isTimeout(err) || attempt === 3) throw err;
+      await sleep(retryWait(attempt));
+      continue;
+    }
+    // The status is checked before the body is read. A retried answer leaves its body unread.
     if (res.status === 429) {
+      await releaseBody(res);
       await sleep(15000);
       continue;
     }
-    const text = await res.text();
-    if (!res.ok) throw new Error(`LLM request failed with ${res.status}: ${text.slice(0, 300)}`);
+    if (res.status >= 500 && attempt < 3) {
+      await releaseBody(res);
+      await sleep(retryWait(attempt));
+      continue;
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`LLM request failed with ${res.status}: ${text.slice(0, 300)}`);
+    }
+    // A connection that drops while the body of a successful answer is read is retried.
+    let text;
+    try {
+      text = await res.text();
+    } catch (err) {
+      if (isTimeout(err) || attempt === 3) throw err;
+      await sleep(retryWait(attempt));
+      continue;
+    }
     data = JSON.parse(text);
     break;
   }

@@ -96,5 +96,6 @@ export const config = {
     token: get('token'),
     model: get('llm_model'),
     minIntervalMs: 6500, // the endpoint allows 10 requests per 60 seconds per key
+    retryWaitMs: 2000, // the pause before the next try of a failed request (connection failure or 5xx)
   },
 };
