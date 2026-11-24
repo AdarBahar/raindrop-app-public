@@ -14,6 +14,7 @@ The screenshot is from the app in use. The bookmarks and the account in it are s
 
 - **Search, filter and sort.** Search the title, the excerpt, the note, the link, the tags and the folder name. Filter by folder, tag, time and status. Sort by date, title, folder or number of visits.
 - **AI suggestions for folders and tags.** Ask a language model for a folder and tags, for one bookmark or for a selection. Each suggestion comes with a reason. You review it before anything is saved.
+- **Notes.** Add free text to a bookmark in the editor. The note is the note of the bookmark in Raindrop, so the Raindrop apps show the same text. The card shows it as plain text with its line breaks.
 - **Bulk actions.** Move, tag, remove tags or archive many bookmarks in one action, with progress and cancel.
 - **Duplicates.** Find links that point to the same page. Keep the most recent one and archive the others, or keep all of them.
 - **Bookmarks that need work.** Find the bookmarks that have no folder, no tags, or neither.
@@ -100,7 +101,7 @@ The app runs as one process behind a reverse proxy. The modules and the rules of
 - Each user connects their own Raindrop account. Each query for user data is limited to the signed-in user.
 - Raindrop is the source of truth. Each change goes to Raindrop first.
 - The Raindrop tokens are stored encrypted (AES-256-GCM). The key is in a file with mode 600, apart from the database. Keep a backup of this file, separate from the database.
-- The database holds the settings, the visits, the "New" labels, "My context", and a log of saved changes. The log keeps bookmark titles for 90 days.
+- The database holds the settings, the visits, the "New" labels, "My context", and a log of saved changes. The log keeps bookmark titles for 90 days. For a save that changes a note, it also keeps the note before and after the change.
 - A copy of the bookmarks in PostgreSQL is built, behind the flag `BOOKMARK_STORE`. The flag is off by default. Without it, the bookmarks are in memory for 5 minutes. See [docs/bookmark-store-plan.md](docs/bookmark-store-plan.md) before you turn it on.
 - A suggestion request sends bookmark data, and the active "My context" entries, to the model endpoint that you configure.
 - "Disconnect Raindrop" removes the tokens and the stored copy, and keeps "My context". "Delete my data" removes all the rows of the user.

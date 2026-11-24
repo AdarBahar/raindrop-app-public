@@ -19,7 +19,7 @@ The design is dark first. It follows the system setting for light. On phones the
 
 ## Data and security rules
 
-- The data is in the PostgreSQL database `raindrop`. It holds per-user settings, visits, New labels and a log of saved changes. The log keeps bookmark titles for 90 days. With `BOOKMARK_STORE=on`, it also holds the stored copy of the bookmarks and folders (titles, notes and links), and the nightly backups hold it too.
+- The data is in the PostgreSQL database `raindrop`. It holds per-user settings, visits, New labels and a log of saved changes. The log keeps bookmark titles for 90 days. For a save that changes a note, it also keeps the note before and after the change. With `BOOKMARK_STORE=on`, it also holds the stored copy of the bookmarks and folders (titles, notes and links), and the nightly backups hold it too.
 - The runtime role `raindrop_app` reads and writes rows only. It cannot create or change tables.
 - Raindrop tokens are stored encrypted with AES-256-GCM.
 - The encryption key is in `app/backend/data/.key`. The file has mode 600. Keep a backup of this file, separate from the database.
