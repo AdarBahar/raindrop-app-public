@@ -96,12 +96,20 @@ function returnFocus(id) {
   target?.focus();
 }
 
-// True when the editor holds the same folder and tags as the saved bookmark.
+// The note of a bookmark as a text box holds it: each line end is "\n".
+const noteOf = item => (item?.note ?? '').replace(/\r\n?/g, '\n');
+
+// The note fields of a new editor. `text` is the text of the note box. `noteBase` is the note when the editor
+// opened. A list refresh can change the note of the bookmark while the editor is open, so the editor
+// compares its text with `noteBase`, not with the bookmark.
+const noteStart = item => ({text: noteOf(item), noteBase: noteOf(item)});
+
+// True when the editor holds the same folder and tags as the saved bookmark, and the note that it started with.
 function unchanged(id) {
   const item = lastResults.find(x => x.id === id);
   const ed = editing[id];
   return Boolean(item) && !ed.creating && String(ed.folderId) === String(item.collection_id) &&
-         ed.tags.length === item.tags.length && ed.tags.every((t, i) => t === item.tags[i]);
+         ed.tags.length === item.tags.length && ed.tags.every((t, i) => t === item.tags[i]) && ed.text === ed.noteBase;
 }
 
 function render() {
@@ -237,6 +245,7 @@ function card(b, n) {
         <div class="meta">${[esc(b.domain), esc(b.collection), `<span class="d">${esc(localDateTime(b.created))}</span> (${ago(b.created)})`, period, visit].filter(Boolean).map(x => `<span>${x}</span>`).join('')}</div>
         ${dupeHtml(b)}
         ${b.excerpt ? `<div class="excerpt">${esc(b.excerpt)}</div>` : ''}
+        ${b.note ? `<div class="note"><span class="lbl">Note</span>${esc(b.note)}</div>` : ''}
       </div>
       <div class="chips">${chips}</div>
       ${action}
@@ -288,6 +297,8 @@ function editorHtml(b, ed) {
         <div class="field"><label for="folder-${b.id}">Folder</label><select id="folder-${b.id}" data-act="folder" data-id="${b.id}">${opts}</select></div>
         ${newBox}
       </div>
+      <div class="field"><label for="note-${b.id}">Note</label><textarea id="note-${b.id}" data-act="notetext" data-id="${b.id}" rows="3" maxlength="${NOTE_MAX}" dir="auto" placeholder="Your note for this bookmark">
+${esc(ed.text ?? '')}</textarea></div>
       <div class="tags-row"><span class="lbl">Tags</span>${chips || '<span class="none">none</span>'}</div>
       <div class="line">
         <div class="field"><label for="newtag-${b.id}">Add tag</label><input id="newtag-${b.id}" data-act="newtag" data-id="${b.id}" aria-label="Add tag" placeholder="Add tag, press Enter" value="${esc(ed.draft || '')}" list="taglist" autocomplete="off"></div>
@@ -304,7 +315,7 @@ function editorHtml(b, ed) {
 // Update one card in place after a save, so the list does not jump.
 function applySaved(id, d) {
   const item = lastResults.find(x => x.id === id);
-  if (item) { item.is_new = false; item.needs = false; item.tags = d.tags; item.collection = d.label; item.collection_id = d.folderId; }
+  if (item) { item.is_new = false; item.needs = false; item.tags = d.tags; item.collection = d.label; item.collection_id = d.folderId; item.note = d.note; }
   if (selected.has(id)) selected.set(id, d.tags);
 }
 
@@ -328,10 +339,10 @@ $('list').addEventListener('click', async e => {
     try {
       const d = await postJson('/api/suggest', {id});
       // note: the answer of the model. The editor shows its reason and its folder suggestion.
-      editing[id] = {folderId: String(d.folderId), tags: d.tags, note: d};
+      editing[id] = {folderId: String(d.folderId), tags: d.tags, note: d, ...noteStart(lastResults.find(x => x.id === id))};
     } catch (err) {
       const item = lastResults.find(x => x.id === id);
-      editing[id] = {folderId: String(item.collection_id), tags: [...item.tags], error: 'Error: Suggestion failed: ' + err.message};
+      editing[id] = {folderId: String(item.collection_id), tags: [...item.tags], ...noteStart(item), error: 'Error: Suggestion failed: ' + err.message};
     }
     suggesting.delete(id);
     $('status').textContent = statusBefore;
@@ -340,9 +351,9 @@ $('list').addEventListener('click', async e => {
   } else if (act === 'edit') {
     // Edit is ignored while a suggestion is pending. See the suggest branch.
     if (suggesting.has(id)) return;
-    // The editor starts with the bookmark's current folder and tags. Nothing is saved until Save.
+    // The editor starts with the bookmark's current folder, tags and note. Nothing is saved until Save.
     const item = lastResults.find(x => x.id === id);
-    editing[id] = {folderId: String(item.collection_id), tags: [...item.tags]};
+    editing[id] = {folderId: String(item.collection_id), tags: [...item.tags], ...noteStart(item)};
     render();
     focusEditor(id);
   } else if (act === 'usefolder') {
@@ -419,7 +430,10 @@ $('list').addEventListener('click', async e => {
       }
     }
     try {
-      const d = await postJson('/api/save', {id, folderId: Number(folderId), tags: ed.tags});
+      // The note goes to the server only when the user changed it. Without it, the server keeps the note.
+      const body = {id, folderId: Number(folderId), tags: ed.tags};
+      if (ed.text !== ed.noteBase) body.note = ed.text;
+      const d = await postJson('/api/save', body);
       delete editing[id];
       applySaved(id, d);
       const done = act === 'archive' ? `Moved to ${ARCHIVE}.` : 'Saved.';
@@ -462,6 +476,7 @@ $('list').addEventListener('input', e => {
   if (el.dataset.act === 'newfolder-name') editing[Number(el.dataset.id)].newName = el.value;
   // The tag draft is kept in the editor state, so a redraw does not lose it.
   if (el.dataset.act === 'newtag') editing[Number(el.dataset.id)].draft = el.value;
+  if (el.dataset.act === 'notetext') editing[Number(el.dataset.id)].text = el.value;
 });
 
 $('list').addEventListener('keydown', e => {

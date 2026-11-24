@@ -212,6 +212,7 @@ function resultOf(c, item, newIds, visits, info, starts) {
     collection: labelFor(c, colId) || String(colId),
     collection_id: colId,
     excerpt: (item.excerpt ?? '').slice(0, 200),
+    note: item.note ?? '', // the full text: the editor changes it
     visits: entry?.count ?? 0,
     last_visit: entry?.last ?? null,
     is_new: isNew,

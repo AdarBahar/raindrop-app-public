@@ -91,6 +91,7 @@ describe('the stored copy turned on', { skip: SKIP_REASON }, () => {
         if (!it) return send(404, {});
         if (req.method === 'PUT') {
           if (body.tags) it.tags = [...body.tags];
+          if (typeof body.note === 'string') it.note = body.note;
           if (body.collection) { it.collection = { ...it.collection, $id: body.collection.$id }; it.collectionId = body.collection.$id; }
           it.lastUpdate = new Date().toISOString();
         }
@@ -215,7 +216,7 @@ describe('the stored copy turned on', { skip: SKIP_REASON }, () => {
       assert.equal(res.json.results.length, 25);
       assert.deepEqual(Object.keys(res.json.results[0]).sort(), [
         'collection', 'collection_id', 'created', 'domain', 'dupe_note', 'dupes', 'excerpt', 'id', 'is_new', 'last_visit', 'link',
-        'loose_key', 'maybe_dupes', 'maybe_why', 'needs', 'period', 'tags', 'title', 'url_key', 'visits',
+        'loose_key', 'maybe_dupes', 'maybe_why', 'needs', 'note', 'period', 'tags', 'title', 'url_key', 'visits',
       ]);
       const meta = (await call('GET', '/api/meta')).json;
       const names = meta.collections.map((c) => c.name);
@@ -297,6 +298,26 @@ describe('the stored copy turned on', { skip: SKIP_REASON }, () => {
       assert.deepEqual(pageCalls(), []);
       const list = await call('GET', '/api/bookmarks?preset=all&collection=11');
       assert.deepEqual(list.json.results.map((r) => r.id), [5]);
+    });
+
+    test('a save with a note stores the note, and a later save without a note keeps it', async () => {
+      await call('POST', '/api/save', { body: { id: 5, folderId: 11, tags: ['x'], note: 'line 1\nline 2' } });
+      assert.equal(world.alice.items.find((i) => i._id === 5).note, 'line 1\nline 2');
+      assert.equal((await stored()).get(5).note, 'line 1\nline 2');
+      await call('POST', '/api/save', { body: { id: 5, folderId: 11, tags: ['y'] } });
+      assert.equal((await stored()).get(5).note, 'line 1\nline 2');
+      svc.cache.clear();
+      assert.equal((await call('GET', '/api/bookmarks?preset=all&collection=11')).json.results[0].note, 'line 1\nline 2');
+    });
+
+    test('a save without a note takes the note that Raindrop returned', async () => {
+      await call('GET', '/api/bookmarks?preset=all');
+      // The note changed in a Raindrop app after the list was loaded.
+      world.alice.items.find((i) => i._id === 5).note = 'changed in Raindrop';
+      const res = await call('POST', '/api/save', { body: { id: 5, folderId: 11, tags: ['x'] } });
+      assert.equal(res.json.note, 'changed in Raindrop');
+      assert.equal((await call('GET', '/api/bookmarks?preset=all&collection=11')).json.results[0].note, 'changed in Raindrop');
+      assert.equal((await stored()).get(5).note, 'changed in Raindrop');
     });
 
     test('a save survives a restart and the next full sync', async () => {

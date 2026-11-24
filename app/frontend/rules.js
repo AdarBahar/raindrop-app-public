@@ -2,6 +2,9 @@
 // The checks match the server limits (config.js). The server still checks every save.
 // The review rules (reviewStart and the functions after it) decide what a suggestion card shows and sends.
 
+// The maximum length of a note. The server has the same limit (config.js, noteLength).
+const NOTE_MAX = 10000;
+
 // The problem with adding one tag to a bookmark that has these tags. Empty text means the tag can be added.
 // A tag that is already in the list is not a problem. It is simply not added twice.
 function tagProblem(tag, tags) {

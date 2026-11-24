@@ -7,7 +7,7 @@ import * as bookmarks from './bookmarks.js';
 import * as bulk from './bulk.js';
 import * as profile from './profile.js';
 import { RequestError, serialize } from './util.js';
-import { tagList } from './limits.js';
+import { noteText, tagList } from './limits.js';
 import { currentUser } from './identity.js';
 import { authorizeUrl, connect, disconnect, exchangeCode, generation, NotConnectedError } from './oauth.js';
 import { beginConnectionChange, cancelSync, ensureSnapshot, syncNow } from './sync.js';
@@ -39,12 +39,16 @@ function sendJson(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
-async function readJson(req) {
+// The JSON body of a request. One decoder reads all the chunks, so a character whose bytes are in two
+// chunks stays whole. Exported for the tests.
+export async function readJson(req) {
+  const decoder = new TextDecoder();
   let raw = '';
   for await (const chunk of req) {
-    raw += chunk;
+    raw += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
     if (raw.length > 65536) throw new RequestError(413, 'The request is too large.');
   }
+  raw += decoder.decode();
   try {
     return raw ? JSON.parse(raw) : {};
   } catch {
@@ -260,7 +264,7 @@ async function api(method, path, url, req, res, svc) {
   }
   if (method === 'POST' && path === '/api/save') {
     // Saves share the queue with bulk jobs, so they cannot overwrite each other's tags.
-    const saved = await serialize(userId, () => bookmarks.save(svc, userId, Number(body.id), Number(body.folderId), tagList(body.tags)));
+    const saved = await serialize(userId, () => bookmarks.save(svc, userId, Number(body.id), Number(body.folderId), tagList(body.tags), noteText(body.note)));
     return sendJson(res, 200, saved);
   }
   if (method === 'POST' && path === '/api/folder') {

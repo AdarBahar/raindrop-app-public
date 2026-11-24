@@ -5,7 +5,7 @@ import { cleanTags } from './util.js';
 // effects and the same code, so a replay and a later write give the same result.
 //   { type: 'upsert', item }                        a created or changed bookmark, as Raindrop returned it
 //   { type: 'delete', ids }                         deleted bookmarks
-//   { type: 'update', ids, collectionId?, tags? }   a single update: the folder and the tags are set (tags replace)
+//   { type: 'update', ids, collectionId?, tags?, note? }   a single update: the folder, the tags and the note are set (tags replace)
 //   { type: 'move', ids, collectionId }             a bulk move to a folder
 //   { type: 'addTags', ids, tags }                  a bulk add of tags (Raindrop appends them)
 //   { type: 'upsertCollection', collection }        a created or changed folder
@@ -17,10 +17,11 @@ export function moveRaw(raw, collectionId) {
   return next;
 }
 
-// A single update of Raindrop sets the folder and replaces the tags. A field that is not given stays.
-export function updateRaw(raw, { collectionId, tags }) {
+// A single update of Raindrop sets the folder, replaces the tags and sets the note. A field that is not given stays.
+export function updateRaw(raw, { collectionId, tags, note }) {
   let next = collectionId === undefined ? raw : moveRaw(raw, collectionId) ?? raw;
   if (tags !== undefined && JSON.stringify(next.tags ?? []) !== JSON.stringify(tags)) next = { ...next, tags: [...tags] };
+  if (note !== undefined && (next.note ?? '') !== note) next = { ...next, note };
   return next === raw ? null : next;
 }
 

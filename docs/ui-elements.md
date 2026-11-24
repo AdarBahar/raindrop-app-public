@@ -37,6 +37,7 @@ Raindrop does not state these values, so the app sets them. The server checks th
 | Bulk request batch | 100 ids for each Raindrop call | Backend only |
 | Custom date range | "from" must not be after "to" | Date inputs |
 | Excerpt shown | 200 characters | Bookmark card |
+| Note length | 0 to 10,000 characters | Note box in the editor |
 | Suggested new tags | 4 for each model suggestion | Suggest button (existing) |
 
 Raindrop call pacing: the app keeps 700 ms between calls for each user. That gives about 85 calls per minute. A bulk action of 1,000 bookmarks with tag removal needs about 12 minutes. The UI must show progress for such actions (section 5.6).
@@ -376,6 +377,7 @@ Each card holds these items, from left to right and top to bottom:
    - Visit text (5.3).
 5. Tag chips. One chip per tag. No remove button in the list view. Empty when there are no tags.
 6. Excerpt (optional). Grey text. Up to 200 characters. Not shown when the excerpt is empty.
+6a. Note (optional). The note of the user, below the excerpt, with the small label "Note" and a line on its left side. It is plain text: the line breaks stay, and Markdown or HTML shows as typed. The card shows at most 6 lines. The editor shows the full text. Not shown when the note is empty.
 7. Action area (**Proposed**: all cards have it):
    - "Edit" button (5.4). Shown on every card.
    - "Suggest folder and tags" button (5.4). Shown for "New" cards and for cards with "No folder or tags" only.
@@ -424,6 +426,7 @@ The editor is a dashed blue box under the card, in place of the action area. It 
 | 0 | Suggestion note | 0 or 1 | Only after "Suggest folder and tags" (5.4). It stays while the editor is open. |
 | 1 | Folder label and select | 1 select | Label "Folder". The select lists every folder (including Unsorted) and one last option "+ Create a new folder...". The current folder is selected (or the suggested folder). A value is always selected. |
 | 2 | New folder row (only after the last option is chosen) | 1 row | Input "New folder name", button "Create folder", button "Cancel". Same rules as 4.12. Error text: "Create folder failed: " plus the reason. A new folder is selected after it is created. |
+| 2a | Note box | 1 text area | Label "Note". Free text with line breaks, 3 rows, at most 10,000 characters. Placeholder "Your note for this bookmark". It starts with the note of the bookmark. Enter adds a line break. It does not save. An empty box removes the note. |
 | 3 | Tag row | 1 row | Label "Tags". Shows the tag chips, or "none" when there are no tags. |
 | 4 | Tag chip | 0 to 20 | Tag text and a remove button. The remove button's accessible name is "Remove tag <tag>". |
 | 5 | Add tag input | 1 input | Label "Add tag". Placeholder "Add tag, press Enter". Enter adds the tag. Focus stays in the input after Enter. Suggestions from the tag list in 4.7. |
@@ -442,9 +445,13 @@ Validation in the editor:
   - A tag with a comma is refused: "Tags cannot contain commas." (Proposed). The current code keeps the comma; this changes it.
   - A 21st tag is refused: "A bookmark can have at most 20 tags." (Proposed)
 - Tags, remove rule: any tag can be removed. Zero tags is allowed.
+- Note: optional. The box stops at 10,000 characters. The server refuses a longer note: "A note can have at most 10000 characters."
+- Note, save rule: the note goes to Raindrop only when the user changed it. A save that changes only the folder or the tags sends no note, so it cannot overwrite a note that changed in a Raindrop app. Raindrop apps show the same note, as Markdown.
+- A changed note counts as a change for the Discard confirm step and for Escape.
+- The bulk edit (5.6) does not change notes.
 
 Save result:
-- Success: the editor closes. The card shows the new folder, the new tags and the correct badges.
+- Success: the editor closes. The card shows the new folder, the new tags, the new note and the correct badges.
 - Folder and tag counts in the header reload.
 - Failure: the editor stays open, with the error text and the chosen values.
 
@@ -621,13 +628,13 @@ These rules apply in addition to the screen rules. The screens must show the err
 
 | Endpoint | Method | Input | Rule | Error text shown |
 |---|---|---|---|---|
-| /api/bookmarks | GET | q, tags, collection, sort, visited, status, needs, preset, from, to, tz, page, pageSize | Adds **page** (default 1) and **pageSize** (25, 50 or 100; default 50). `from` and `to` are local dates. `tz` is the user's IANA zone. With `status=dupes`, the answer also has `groups` (each with `section`, `key`, `ids`, `note` and `why`) and has no pages: `results` holds all the bookmarks of the groups. Each result has `dupes` (other bookmarks with the same definite key), `maybe_dupes` (other bookmarks with the same possible key only), `url_key` (the definite key), `loose_key` (the possible key), `dupe_note` (the kind of link, for example "YouTube video"), `maybe_why` (the reason for a possible match) and `period` (the narrowest date preset that has the bookmark: `today`, `last7`, `last30` or `older`). Returns `total`, `matched`, `page`, `pageSize`, `pages`, and `presets` (the date counts with all filters except the date). With `status=needs`, `needs` (`both`, `folder` or `tags`) narrows the list (section 4.5), and the answer also has `needsCounts` (`any`, `both`, `folder`, `tags`: the count of each kind with all the other filters, the date too). | Count line shows the error text. |
+| /api/bookmarks | GET | q, tags, collection, sort, visited, status, needs, preset, from, to, tz, page, pageSize | Adds **page** (default 1) and **pageSize** (25, 50 or 100; default 50). `from` and `to` are local dates. `tz` is the user's IANA zone. With `status=dupes`, the answer also has `groups` (each with `section`, `key`, `ids`, `note` and `why`) and has no pages: `results` holds all the bookmarks of the groups. Each result has `note`: the full note of the bookmark, as plain text. Each result has `dupes` (other bookmarks with the same definite key), `maybe_dupes` (other bookmarks with the same possible key only), `url_key` (the definite key), `loose_key` (the possible key), `dupe_note` (the kind of link, for example "YouTube video"), `maybe_why` (the reason for a possible match) and `period` (the narrowest date preset that has the bookmark: `today`, `last7`, `last30` or `older`). Returns `total`, `matched`, `page`, `pageSize`, `pages`, and `presets` (the date counts with all filters except the date). With `status=needs`, `needs` (`both`, `folder` or `tags`) narrows the list (section 4.5), and the answer also has `needsCounts` (`any`, `both`, `folder`, `tags`: the count of each kind with all the other filters, the date too). | Count line shows the error text. |
 | /api/me | GET | none | Gives the user, the connection, `lastChecked`, and, when the stored copy is on, `syncedAt` (ISO time of the last full sync, or `null`) and `syncError` (text of the last failure, or `null`). With the copy off, the two fields are not in the answer. | The footer shows no synced text (section 6.2). |
 | /api/meta | GET | tz | Preset counts use the user's day boundaries from `tz`. | Count line shows "Load failed: ...". |
 | /api/pull | POST | none | First call saves a baseline. | Status line shows the server text. |
 | /api/changes | GET | none | The quick check. One Raindrop call reads the newest 25 bookmarks. Returns `added` (how many of them are not in the app) and `more` (true when all 25 are new). Changes nothing and takes no queue turn. The server keeps the answer for 60 seconds for each user. A full check clears it. | Nothing shows. The button keeps its label. |
 | /api/suggest | POST | id | Bookmark must exist. Returns `folderId`, `folder` and `label` (the folder that the editor selects), `tags`, `tagsLeftOut`, `reason`, `status` (`ready` or `needs_review`), `suggestedFolder` (`id` and `label`, or null), `proposedFolder` (a name, or null) and `profileTags` (a list of `tag`, `entryId` and `entryName`; not in `tags`). 502 when the model gives no answer for the bookmark. | "Suggestion failed: ..." in the editor. |
-| /api/save | POST | id, folderId, tags | folderId must be an existing folder ID, including -1 (Unsorted). Tags are trimmed. Duplicates are removed. Max 20 tags, 50 characters each, no commas. | "Save failed: ..." in the editor. |
+| /api/save | POST | id, folderId, tags, note (optional) | folderId must be an existing folder ID, including -1 (Unsorted). Tags are trimmed. Duplicates are removed. Max 20 tags, 50 characters each, no commas. `note` is text of at most 10,000 characters. Its line ends become `\n`. Without `note`, the note of the bookmark stays and Raindrop gets no note. An empty `note` removes the note. The answer has `note`: the note that the bookmark has now. The change log records the note before and after, only for a save that sent a note. | "Save failed: ..." in the editor. |
 | /api/bulk | POST | action (move, addTags, removeTags), ids or filter, folderId or tags | Max 1,000 bookmarks. Returns a job ID. Filter-based selection is resolved on the server. | "Bulk update failed: ..." in the status line. |
 | /api/bulk/{jobId} | GET | jobId | Returns done, total, failed list, status (running, done, cancelled). | Progress panel shows "Update failed: ...". |
 | /api/bulk/{jobId}/cancel | POST | jobId | Stops the remaining items. | Progress panel shows the server text. |

@@ -148,7 +148,9 @@ export function editorSuggestion(item, c, options, entry) {
 }
 
 // Write the folder and tags to Raindrop and log the change.
-export async function save(svc, userId, rid, folderId, tagsIn) {
+// `note` is the new note of the bookmark, as plain text. Without it, the note stays as it is and
+// Raindrop gets no note, so a save of tags cannot overwrite a note that changed in a Raindrop app.
+export async function save(svc, userId, rid, folderId, tagsIn, note) {
   // Check the tags before the bookmarks load, so bad input never causes a Raindrop call.
   const tags = cleanTags(tagsIn);
   checkTags(tags);
@@ -164,29 +166,38 @@ export async function save(svc, userId, rid, folderId, tagsIn) {
     folder: c.collections.get(item.collection?.$id) ?? 'Unsorted',
     tags: item.tags ?? [],
   };
+  const after = { folder, tags };
+  // The log has the note only for a save that sent one.
+  if (note !== undefined) before.note = item.note ?? '';
   const res = await raindropCall(svc, userId, 'PUT', `/raindrop/${rid}`, {
     collection: { $id: colId },
     tags,
+    ...(note === undefined ? {} : { note }),
   });
   const savedTags = res.item?.tags ?? tags;
+  // The note that Raindrop returned is the current one, also for a save that sent no note.
+  const savedNote = res.item?.note ?? note;
   const tagsMatch = sameTagSet(savedTags, tags);
   // Raindrop accepted the change. The stored copy gets the object that Raindrop returned. Without it, the same fields.
   await writeThrough(svc, userId, gen, res.item?._id === rid
     ? { type: 'upsert', item: res.item }
-    : { type: 'update', ids: [rid], collectionId: colId, tags: savedTags });
+    : { type: 'update', ids: [rid], collectionId: colId, tags: savedTags, note });
 
   item.collection = { $id: colId };
   item.tags = savedTags;
+  after.tags = savedTags;
+  if (savedNote !== undefined) item.note = savedNote;
+  if (note !== undefined) after.note = savedNote;
   await svc.store.removeNew(userId, rid);
   await svc.store.addLog(userId, {
     time: new Date().toISOString(),
     id: rid,
     title: titleOf(item),
     before,
-    after: { folder, tags: savedTags },
+    after,
     tags_match: tagsMatch,
   });
-  return { folderId, folder, label: labelFor(c, folderId), tags: savedTags, tags_match: tagsMatch };
+  return { folderId, folder, label: labelFor(c, folderId), tags: savedTags, tags_match: tagsMatch, note: item.note ?? '' };
 }
 
 // Count one visit and return the bookmark link. Null when the bookmark has no web link.

@@ -290,7 +290,7 @@ test('the editor: a profile tag has a box that is not checked until the tag is i
   const js = front('list.js');
   assert.match(js, /data-act="ptag" data-id="\$\{b\.id\}" value="\$\{esc\(p\.tag\)\}"\$\{has\(p\.tag\) \? ' checked' : ''\}/);
   // The answer of the model puts no profile tag in the tags of the editor: only d.tags.
-  assert.match(js, /editing\[id\] = \{folderId: String\(d\.folderId\), tags: d\.tags, note: d\};/);
+  assert.match(js, /editing\[id\] = \{folderId: String\(d\.folderId\), tags: d\.tags, note: d, \.\.\.noteStart\(lastResults\.find\(x => x\.id === id\)\)\};/);
 });
 
 test('the page says that the active entries go to the model', () => {

@@ -618,6 +618,13 @@ describe('effects', () => {
     assert.equal(updateRaw(raw, { collectionId: 10, tags: ['a', 'b'] }), null);
     assert.equal(updateRaw(raw, {}), null);
     assert.equal(updateRaw({ _id: 1 }, { tags: [] }), null);
+    // The note is set only when it is given and it differs.
+    assert.equal(updateRaw(raw, { note: 'n' }).note, 'n');
+    assert.deepEqual(updateRaw(raw, { note: 'n' }).tags, ['a', 'b']);
+    assert.equal(updateRaw({ ...raw, note: 'n' }, { note: 'n' }), null);
+    assert.equal(updateRaw({ ...raw, note: 'n' }, { note: '' }).note, '');
+    assert.equal(updateRaw({ _id: 1 }, { note: '' }), null);
+    assert.equal(updateRaw({ ...raw, note: 'n' }, { tags: ['c'] }).note, 'n');
   });
 
   test('an unknown effect type is refused', async () => {

@@ -11,6 +11,18 @@ export function tagList(value) {
   return value;
 }
 
+// The note the browser sends: text, or nothing. Nothing means that the save keeps the note of the bookmark.
+// The line ends become "\n", so the length is the same for each browser.
+export function noteText(value) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') throw new RequestError(400, 'The note must be text.');
+  const text = value.replace(/\r\n?/g, '\n');
+  if (text.length > config.limits.noteLength) {
+    throw new RequestError(400, `A note can have at most ${config.limits.noteLength} characters.`);
+  }
+  return text;
+}
+
 // The app's own limits. Raindrop does not state these values. See config.js.
 const { limits } = config;
 

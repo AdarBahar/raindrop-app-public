@@ -76,6 +76,7 @@ export const config = {
     tagsPerBookmark: 20,
     tagsPerFilter: 10, // tags in the tag filter
     folderName: 100, // characters in a folder name
+    noteLength: 10000, // characters in the note of a bookmark
     // The profile of a user (docs/profile-plan.md, section 5).
     profileEntries: 40, // entries for each user
     profileName: 60, // characters in the name of an entry

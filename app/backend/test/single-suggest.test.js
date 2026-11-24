@@ -152,7 +152,7 @@ test('the editor note: a proposed folder, and the text for tags over the limit',
 
 test('the editor keeps the answer, shows the note, and creates nothing by itself', () => {
   const js = readFileSync(new URL('../../frontend/list.js', import.meta.url), 'utf8');
-  assert.match(js, /editing\[id\] = \{folderId: String\(d\.folderId\), tags: d\.tags, note: d\};/);
+  assert.match(js, /editing\[id\] = \{folderId: String\(d\.folderId\), tags: d\.tags, note: d, \.\.\.noteStart\(lastResults\.find\(x => x\.id === id\)\)\};/);
   assert.match(js, /\$\{ed\.note \? noteHtml\(b, ed\) : ''\}/);
   assert.match(js, /data-act="usefolder"[^>]*>Move to this folder</);
   assert.match(js, /data-act="useproposed"[^>]*>Use this name</);

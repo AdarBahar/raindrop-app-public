@@ -35,6 +35,8 @@ const EMAIL = (name) => `${name}@example.test`;
 
 const CODES = { 'code-alice': 'alice', 'code-bob': 'bob', 'code-slow': 'alice' };
 const REFRESH = { 'ref-alice': 'alice', 'ref-bob': 'bob' };
+// The bodies of the single bookmark updates that the fake got, in order.
+const puts = [];
 const userOf = (token) => (token?.startsWith('tok-alice') ? 'alice' : token?.startsWith('tok-bob') ? 'bob' : null);
 
 function fakeRaindrop(data) {
@@ -95,6 +97,8 @@ function fakeRaindrop(data) {
       if (!item) return send(404, { result: false });
       item.collection = body.collection;
       item.tags = body.tags;
+      if ('note' in body) item.note = body.note;
+      puts.push(body);
       return send(200, { result: true, item });
     }
     return send(404, { error: 'not found' });
@@ -280,6 +284,56 @@ describe('one app, several users', { skip: SKIP_REASON }, () => {
     const res = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 999999, tags: [] } });
     assert.equal(res.status, 400);
     assert.match(res.json.error, /Unknown folder/);
+  });
+
+  // The newest change-log entry of alice.
+  async function lastLog() {
+    const { rows } = await store.pool.query(`SELECT entry FROM "${schema}".classify_log WHERE user_id = $1 ORDER BY time DESC LIMIT 1`, [EMAIL('alice')]);
+    const { entry } = rows[0];
+    return typeof entry === 'string' ? JSON.parse(entry) : entry;
+  }
+
+  test('a save with a note writes the note to Raindrop, and the list and the log have it', async () => {
+    const text = 'First line\nSecond line <b>';
+    const saved = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a'], note: 'First line\r\nSecond line <b>' } });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.json.note, text);
+    assert.equal(puts.at(-1).note, text);
+    const item = (await call('GET', '/api/bookmarks?q=bookmark%20one', { user: 'alice' })).json.results[0];
+    assert.equal(item.note, text);
+    // The search reads the note too.
+    assert.deepEqual((await call('GET', '/api/bookmarks?q=second%20line', { user: 'alice' })).json.results.map((r) => r.id), [101]);
+    const entry = await lastLog();
+    assert.equal(entry.before.note, '');
+    assert.equal(entry.after.note, text);
+  });
+
+  test('a save without a note sends no note to Raindrop, and the note stays', async () => {
+    const saved = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a', 'b'] } });
+    assert.equal(saved.status, 200);
+    assert.equal('note' in puts.at(-1), false);
+    assert.equal(saved.json.note, 'First line\nSecond line <b>');
+    const entry = await lastLog();
+    assert.equal('note' in entry.before, false);
+    assert.equal('note' in entry.after, false);
+  });
+
+  test('an empty note clears the note', async () => {
+    const saved = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a'], note: '' } });
+    assert.equal(saved.json.note, '');
+    assert.equal(puts.at(-1).note, '');
+  });
+
+  test('a note that is too long, or that is not text, is refused before a Raindrop call', async () => {
+    const count = puts.length;
+    const long = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a'], note: 'x'.repeat(10001) } });
+    assert.equal(long.status, 400);
+    assert.equal(long.json.error, 'A note can have at most 10000 characters.');
+    const wrong = await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a'], note: ['x'] } });
+    assert.equal(wrong.status, 400);
+    assert.equal(wrong.json.error, 'The note must be text.');
+    assert.equal((await call('POST', '/api/save', { user: 'alice', body: { id: 101, folderId: 11, tags: ['a'], note: 'x'.repeat(10000) } })).status, 200);
+    assert.equal(puts.length, count + 1);
   });
 
   test('an approval started by one session cannot finish in another', async () => {
